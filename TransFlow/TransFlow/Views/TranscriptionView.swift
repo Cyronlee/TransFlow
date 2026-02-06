@@ -9,21 +9,22 @@ struct TranscriptionView: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 0) {
                     ForEach(sentences) { sentence in
                         SentenceRow(
                             sentence: sentence,
                             showTranslation: isTranslationEnabled
                         )
                     }
-
-                    // Anchor for auto-scroll
-                    Color.clear
-                        .frame(height: 1)
-                        .id("bottom")
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 16)
+
+                // Anchor for auto-scroll — placed OUTSIDE the padded VStack
+                // so scrollTo reaches the true bottom of the content.
+                Color.clear
+                    .frame(height: 1)
+                    .id("bottom")
             }
             .onChange(of: sentences.count) {
                 withAnimation(.easeOut(duration: 0.2)) {

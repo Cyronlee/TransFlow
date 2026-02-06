@@ -81,6 +81,7 @@ struct BottomPanelView: View {
                 // ── Controls row ──
                 ControlBarView(viewModel: viewModel)
             }
+            .animation(.easeInOut(duration: 0.25), value: shouldShowPreview)
             .padding(.horizontal, 20)
             .padding(.top, 12)
             .padding(.bottom, 14)
@@ -88,44 +89,53 @@ struct BottomPanelView: View {
         }
     }
 
+    private var shouldShowPreview: Bool {
+        viewModel.listeningState == .active
+            || viewModel.listeningState == .starting
+            || !viewModel.currentPartialText.isEmpty
+    }
+
     @ViewBuilder
     private var livePreviewSection: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            if !viewModel.currentPartialText.isEmpty {
-                Text(viewModel.currentPartialText)
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundStyle(.secondary)
-                    .italic()
-                    .lineLimit(3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                if viewModel.translationService.isEnabled,
-                   !viewModel.translationService.currentPartialTranslation.isEmpty {
-                    Text(viewModel.translationService.currentPartialTranslation)
-                        .font(.system(size: 12, weight: .regular))
-                        .foregroundStyle(.tertiary)
+        if shouldShowPreview {
+            VStack(alignment: .leading, spacing: 3) {
+                if !viewModel.currentPartialText.isEmpty {
+                    Text(viewModel.currentPartialText)
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundStyle(.secondary)
                         .italic()
-                        .lineLimit(2)
+                        .lineLimit(3)
                         .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if viewModel.translationService.isEnabled,
+                       !viewModel.translationService.currentPartialTranslation.isEmpty {
+                        Text(viewModel.translationService.currentPartialTranslation)
+                            .font(.system(size: 12, weight: .regular))
+                            .foregroundStyle(.tertiary)
+                            .italic()
+                            .lineLimit(2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                } else {
+                    // Listening indicator when active but no partial text yet
+                    HStack(spacing: 6) {
+                        TypingIndicatorView()
+                        Text("Listening...")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-            } else if viewModel.listeningState == .active {
-                // Listening indicator when active but no partial text yet
-                HStack(spacing: 6) {
-                    TypingIndicatorView()
-                    Text("Listening...")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.tertiary)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(.quaternary.opacity(0.3))
+            )
+            .transition(.opacity.combined(with: .move(edge: .bottom)))
         }
-        .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(.quaternary.opacity(0.3))
-        )
     }
 }
 

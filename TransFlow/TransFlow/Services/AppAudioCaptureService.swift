@@ -38,11 +38,28 @@ final class AppAudioCaptureService: NSObject, Sendable {
                     && regularAppsLookup[app.bundleIdentifier] != nil
             }
 
-            let apps = filteredApps.map { app in
-                AppAudioTarget(
+            let apps: [AppAudioTarget] = filteredApps.map { app in
+                // Retrieve the app icon from NSRunningApplication
+                let iconData: Data? = {
+                    guard let nsApp = regularAppsLookup[app.bundleIdentifier],
+                          let icon = nsApp.icon else { return nil }
+                    // Resize to 32x32 for efficiency
+                    let size = NSSize(width: 32, height: 32)
+                    let resized = NSImage(size: size)
+                    resized.lockFocus()
+                    icon.draw(in: NSRect(origin: .zero, size: size),
+                              from: NSRect(origin: .zero, size: icon.size),
+                              operation: .copy, fraction: 1.0)
+                    resized.unlockFocus()
+                    guard let tiff = resized.tiffRepresentation,
+                          let rep = NSBitmapImageRep(data: tiff) else { return nil }
+                    return rep.representation(using: .png, properties: [:])
+                }()
+                return AppAudioTarget(
                     id: app.processID,
                     name: app.applicationName,
-                    bundleIdentifier: app.bundleIdentifier
+                    bundleIdentifier: app.bundleIdentifier,
+                    iconData: iconData
                 )
             }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }

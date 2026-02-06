@@ -48,3 +48,25 @@
   - 翻译开关："Enable translation" / "Disable translation"（已有）
   - 目标语言："Translation target language"
   - 导出按钮："Export SRT"（已有）
+
+---
+
+## UI 细节修复 (2)
+
+### 实时转录区显示逻辑
+
+- 恢复为 idle 时隐藏、active/starting 时显示的逻辑
+- 使用 `.animation(.easeInOut)` + `.transition(.opacity + .move)` 实现平滑的显示/隐藏动画，避免布局跳动
+
+### 历史转录区自动滚动修复
+
+- 将 `Color.clear` 滚动锚点从 `LazyVStack`（带 padding）内部移至 `ScrollView` 内部、`VStack` 外部
+- 之前锚点在带 padding 的 VStack 内，`scrollTo("bottom")` 无法到达真正的内容底部
+- 同时将 `LazyVStack` 改为 `VStack`，确保所有内容正确渲染
+
+### App 音频源显示真实图标
+
+- `AppAudioTarget` 模型新增 `iconData: Data?` 字段，存储 PNG 格式的 app 图标数据（32x32 缩放）
+- `AppAudioCaptureService.availableApps()` 从 `NSRunningApplication.icon` 获取图标，缩放后转为 PNG Data 存储（Sendable 安全）
+- 控制栏音频源按钮：选择 app 音频源时，显示该 app 的真实图标（16x16）替代通用 `app.fill` 图标
+- 使用 `NSImage(data:)` → `Image(nsImage:)` 将图标数据转为 SwiftUI Image 显示

@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Redesigned control bar: Audio source (left) | Record button (center) | Language & Translation (right).
 /// Apple-inspired clean layout with a prominent circular record button.
@@ -92,6 +93,7 @@ struct ControlBarView: View {
                 }
             }
             .animation(.spring(response: 0.35, dampingFraction: 0.7), value: viewModel.listeningState)
+            .frame(width: 70, height: 70)
         }
         .buttonStyle(.plain)
         .disabled(viewModel.listeningState == .starting || viewModel.listeningState == .stopping)
@@ -190,9 +192,8 @@ struct ControlBarView: View {
                 Label("Refresh Apps", systemImage: "arrow.clockwise")
             }
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: audioSourceIcon)
-                    .font(.system(size: 12, weight: .medium))
+            HStack(spacing: 5) {
+                audioSourceIconView
                 Text(audioSourceName)
                     .font(.system(size: 11, weight: .medium))
                     .lineLimit(1)
@@ -210,10 +211,23 @@ struct ControlBarView: View {
         .help("Audio source")
     }
 
-    private var audioSourceIcon: String {
+    @ViewBuilder
+    private var audioSourceIconView: some View {
         switch viewModel.audioSource {
-        case .microphone: "mic.fill"
-        case .appAudio: "app.fill"
+        case .microphone:
+            Image(systemName: "mic.fill")
+                .font(.system(size: 12, weight: .medium))
+        case .appAudio(let target):
+            if let target, let iconData = target.iconData,
+               let nsImage = NSImage(data: iconData) {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 16, height: 16)
+            } else {
+                Image(systemName: "app.fill")
+                    .font(.system(size: 12, weight: .medium))
+            }
         }
     }
 

@@ -37,6 +37,8 @@ struct AppAudioTarget: Identifiable, Sendable, Equatable, Hashable {
     let id: Int32 // process ID
     let name: String
     let bundleIdentifier: String?
+    /// PNG icon data for the app (Sendable-safe representation of NSImage)
+    let iconData: Data?
 
     static func == (lhs: AppAudioTarget, rhs: AppAudioTarget) -> Bool {
         lhs.id == rhs.id
