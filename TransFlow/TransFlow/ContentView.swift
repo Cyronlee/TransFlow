@@ -90,48 +90,42 @@ struct BottomPanelView: View {
 
     @ViewBuilder
     private var livePreviewSection: some View {
-        let hasPartial = !viewModel.currentPartialText.isEmpty
-        let isActive = viewModel.listeningState == .active
-
-        if hasPartial || isActive {
-            VStack(alignment: .leading, spacing: 3) {
-                if hasPartial {
-                    Text(viewModel.currentPartialText)
-                        .font(.system(size: 13, weight: .regular))
-                        .foregroundStyle(.secondary)
-                        .italic()
-                        .lineLimit(3)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .animation(.easeOut(duration: 0.15), value: viewModel.currentPartialText)
-
-                    if viewModel.translationService.isEnabled,
-                       !viewModel.translationService.currentPartialTranslation.isEmpty {
-                        Text(viewModel.translationService.currentPartialTranslation)
-                            .font(.system(size: 12, weight: .regular))
-                            .foregroundStyle(.tertiary)
-                            .italic()
-                            .lineLimit(2)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                } else if isActive {
-                    // Listening indicator when active but no partial text yet
-                    HStack(spacing: 6) {
-                        TypingIndicatorView()
-                        Text("Listening...")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.tertiary)
-                    }
+        VStack(alignment: .leading, spacing: 3) {
+            if !viewModel.currentPartialText.isEmpty {
+                Text(viewModel.currentPartialText)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(.secondary)
+                    .italic()
+                    .lineLimit(3)
                     .frame(maxWidth: .infinity, alignment: .leading)
+
+                if viewModel.translationService.isEnabled,
+                   !viewModel.translationService.currentPartialTranslation.isEmpty {
+                    Text(viewModel.translationService.currentPartialTranslation)
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundStyle(.tertiary)
+                        .italic()
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
+            } else if viewModel.listeningState == .active {
+                // Listening indicator when active but no partial text yet
+                HStack(spacing: 6) {
+                    TypingIndicatorView()
+                    Text("Listening...")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(.quaternary.opacity(0.3))
-            )
-            .transition(.opacity.combined(with: .move(edge: .bottom)))
         }
+        .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(.quaternary.opacity(0.3))
+        )
     }
 }
 

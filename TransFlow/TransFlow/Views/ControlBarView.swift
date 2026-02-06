@@ -95,6 +95,7 @@ struct ControlBarView: View {
         }
         .buttonStyle(.plain)
         .disabled(viewModel.listeningState == .starting || viewModel.listeningState == .stopping)
+        .help(recordButtonHelpText)
         .accessibilityLabel(recordButtonAccessibilityLabel)
     }
 
@@ -111,6 +112,15 @@ struct ControlBarView: View {
         case .idle: .red
         case .starting, .stopping: .red.opacity(0.4)
         case .active: .red
+        }
+    }
+
+    private var recordButtonHelpText: String {
+        switch viewModel.listeningState {
+        case .idle: "Start transcription"
+        case .starting: "Starting..."
+        case .active: "Stop transcription"
+        case .stopping: "Stopping..."
         }
     }
 
@@ -186,7 +196,6 @@ struct ControlBarView: View {
                 Text(audioSourceName)
                     .font(.system(size: 11, weight: .medium))
                     .lineLimit(1)
-                    .frame(maxWidth: 80, alignment: .leading)
             }
             .foregroundStyle(.primary)
             .padding(.horizontal, 8)
@@ -198,6 +207,7 @@ struct ControlBarView: View {
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
+        .help("Audio source")
     }
 
     private var audioSourceIcon: String {
@@ -209,7 +219,7 @@ struct ControlBarView: View {
 
     private var audioSourceName: String {
         switch viewModel.audioSource {
-        case .microphone: "Mic"
+        case .microphone: "Microphone"
         case .appAudio(let target): target?.name ?? "App"
         }
     }
@@ -249,6 +259,7 @@ struct ControlBarView: View {
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
+        .help("Transcription language")
     }
 
     private var languageDisplayName: String {
@@ -313,6 +324,7 @@ struct ControlBarView: View {
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
+                .help("Translation target language")
                 .transition(.opacity.combined(with: .move(edge: .leading)))
             }
         }

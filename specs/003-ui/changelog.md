@@ -34,3 +34,17 @@
 - 空状态图标增大至 56pt thin weight，整体上移避免被底部面板遮挡
 - 窗口最小尺寸调整为 640x460
 - 修复了 `AnyShapeStyle` 类型擦除以解决 Swift 6 严格模式下 ternary 表达式类型不匹配
+
+---
+
+## UI 细节修复
+
+- 实时转录区改为始终显示（`minHeight: 40`），不再因 idle/active 状态切换而动态出现/消失，修复了点击开始按钮后下半部分向上跳动的问题
+- 音频源按钮文字从 "Mic" 改为 "Microphone"，去掉了 `maxWidth: 80` 限制
+- 为所有控件添加 hover tooltip（`.help()`）：
+  - 音频源按钮："Audio source"
+  - 录制按钮："Start transcription" / "Stop transcription"
+  - 语言选择器："Transcription language"
+  - 翻译开关："Enable translation" / "Disable translation"（已有）
+  - 目标语言："Translation target language"
+  - 导出按钮："Export SRT"（已有）
