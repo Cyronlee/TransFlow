@@ -1,0 +1,3 @@
+麦克风转录工作正常，但监听app音频源无法转录，而且翻译功能打开就崩溃
+
+在翻译时会经常弹出the language could not be detected的select language弹窗，不要自动识别，使用实时转录时选择的语言作为翻译源语言（注意语言的label是否可以服用，可能需要映射）

@@ -178,7 +178,8 @@ struct ControlBarView: View {
             .toggleStyle(.switch)
             .controlSize(.small)
             .onChange(of: viewModel.translationService.isEnabled) {
-                viewModel.translationService.updateConfiguration()
+                // Ensure source language is synced before creating config
+                viewModel.translationService.updateSourceLanguage(from: viewModel.selectedLanguage)
             }
 
             if viewModel.translationService.isEnabled {

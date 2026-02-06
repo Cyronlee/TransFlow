@@ -24,7 +24,7 @@ struct ContentView: View {
         .frame(minWidth: 600, minHeight: 400)
         // Translation session provider — this is the ONLY way to obtain a TranslationSession
         .translationTask(viewModel.translationService.configuration) { session in
-            viewModel.translationService.setSession(session)
+            await viewModel.translationService.handleSession(session)
         }
         // Empty state
         .overlay {

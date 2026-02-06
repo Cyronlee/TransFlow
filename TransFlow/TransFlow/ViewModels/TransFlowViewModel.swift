@@ -53,6 +53,9 @@ final class TransFlowViewModel {
         // Request microphone permission
         micPermissionGranted = await AudioCaptureService.requestPermission()
 
+        // Sync initial transcription language to translation service
+        translationService.updateSourceLanguage(from: selectedLanguage)
+
         // Load supported languages
         await loadSupportedLanguages()
 
@@ -75,6 +78,10 @@ final class TransFlowViewModel {
         }
         selectedLanguage = locale
         speechEngine = SpeechEngine(locale: locale)
+
+        // Sync transcription language to translation source language
+        translationService.updateSourceLanguage(from: locale)
+
         if wasListening {
             startListening()
         }
