@@ -1,19 +1,15 @@
 import SwiftUI
 
-/// Main transcription area showing completed sentences and volatile preview.
+/// Main transcription area showing completed sentences history.
+/// Only displays finalized sentences — volatile preview is shown in the bottom panel.
 struct TranscriptionView: View {
     let sentences: [TranscriptionSentence]
-    let partialText: String
-    let partialTranslation: String
     let isTranslationEnabled: Bool
-
-    @State private var scrollProxy: ScrollViewProxy?
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    // Completed sentences
+                LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(sentences) { sentence in
                         SentenceRow(
                             sentence: sentence,
@@ -21,40 +17,16 @@ struct TranscriptionView: View {
                         )
                     }
 
-                    // Volatile preview (partial text)
-                    if !partialText.isEmpty {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Divider()
-                                .padding(.vertical, 4)
-
-                            Text(partialText)
-                                .font(.body)
-                                .foregroundStyle(.secondary)
-                                .italic()
-
-                            if isTranslationEnabled && !partialTranslation.isEmpty {
-                                Text(partialTranslation)
-                                    .font(.callout)
-                                    .foregroundStyle(.tertiary)
-                                    .italic()
-                            }
-                        }
-                    }
-
                     // Anchor for auto-scroll
                     Color.clear
                         .frame(height: 1)
                         .id("bottom")
                 }
-                .padding()
+                .padding(.horizontal, 24)
+                .padding(.vertical, 16)
             }
             .onChange(of: sentences.count) {
                 withAnimation(.easeOut(duration: 0.2)) {
-                    proxy.scrollTo("bottom", anchor: .bottom)
-                }
-            }
-            .onChange(of: partialText) {
-                withAnimation(.easeOut(duration: 0.1)) {
                     proxy.scrollTo("bottom", anchor: .bottom)
                 }
             }
@@ -68,25 +40,40 @@ struct SentenceRow: View {
     let showTranslation: Bool
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            // Timestamp
-            Text(sentence.timestamp, format: .dateTime.hour().minute().second())
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .monospacedDigit()
-                .frame(width: 64, alignment: .trailing)
+        VStack(alignment: .leading, spacing: 0) {
+            // Top separator line
+            Rectangle()
+                .fill(.quaternary.opacity(0.5))
+                .frame(height: 0.5)
+                .padding(.vertical, 10)
 
-            // Text content
-            VStack(alignment: .leading, spacing: 2) {
-                Text(sentence.text)
-                    .font(.body)
-                    .textSelection(.enabled)
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                // Timestamp badge
+                Text(sentence.timestamp, format: .dateTime.hour().minute().second())
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(.quaternary.opacity(0.3))
+                    )
 
-                if showTranslation, let translation = sentence.translation, !translation.isEmpty {
-                    Text(translation)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                // Text content
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(sentence.text)
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundStyle(.primary)
                         .textSelection(.enabled)
+                        .lineSpacing(3)
+
+                    if showTranslation, let translation = sentence.translation, !translation.isEmpty {
+                        Text(translation)
+                            .font(.system(size: 13, weight: .regular))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                            .lineSpacing(2)
+                    }
                 }
             }
         }

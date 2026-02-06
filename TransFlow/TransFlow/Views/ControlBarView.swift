@@ -1,91 +1,144 @@
 import SwiftUI
 
-/// Bottom control bar with listening controls, audio source, language selection, translation, and export.
+/// Redesigned control bar: Audio source (left) | Record button (center) | Language & Translation (right).
+/// Apple-inspired clean layout with a prominent circular record button.
 struct ControlBarView: View {
     @Bindable var viewModel: TransFlowViewModel
 
     var body: some View {
-        HStack(spacing: 12) {
-            // Start/Stop button
-            listenButton
+        HStack(spacing: 0) {
+            // ── Left: Audio source + waveform ──
+            leftControls
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            Divider()
-                .frame(height: 20)
+            // ── Center: Record button ──
+            recordButton
 
-            // Audio source picker
+            // ── Right: Language + Translation + Export ──
+            rightControls
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
+
+    // MARK: - Left Controls
+
+    private var leftControls: some View {
+        HStack(spacing: 10) {
+            // Audio source menu
             audioSourcePicker
 
-            Divider()
-                .frame(height: 20)
-
-            // Transcription language picker
-            languagePicker
-
-            Divider()
-                .frame(height: 20)
-
-            // Translation toggle + target language
-            translationControls
-
-            Spacer()
-
-            // Waveform
-            AudioLevelView(
-                levels: viewModel.audioLevelHistory,
-                isActive: viewModel.listeningState == .active
-            )
-
-            Divider()
-                .frame(height: 20)
-
-            // Export button
-            exportButton
+            // Waveform visualization (only when active)
+            if viewModel.listeningState == .active {
+                AudioLevelView(
+                    levels: viewModel.audioLevelHistory,
+                    isActive: true
+                )
+                .transition(.opacity)
+            }
 
             // Error indicator
             if let error = viewModel.errorMessage {
                 Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 12))
                     .foregroundStyle(.yellow)
                     .help(error)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
     }
 
-    // MARK: - Subviews
+    // MARK: - Record Button
 
-    private var listenButton: some View {
+    private var recordButton: some View {
         Button {
             viewModel.toggleListening()
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: listenButtonIcon)
-                    .symbolEffect(.pulse, isActive: viewModel.listeningState == .starting)
-                Text(listenButtonTitle)
+            ZStack {
+                // Outer ring
+                Circle()
+                    .stroke(recordButtonRingColor, lineWidth: 2.5)
+                    .frame(width: 52, height: 52)
+
+                // Animated pulse ring when active
+                if viewModel.listeningState == .active {
+                    Circle()
+                        .stroke(Color.red.opacity(0.3), lineWidth: 1.5)
+                        .frame(width: 60, height: 60)
+                        .scaleEffect(viewModel.listeningState == .active ? 1.15 : 1.0)
+                        .opacity(viewModel.listeningState == .active ? 0 : 0.5)
+                        .animation(
+                            .easeOut(duration: 1.2).repeatForever(autoreverses: false),
+                            value: viewModel.listeningState
+                        )
+                }
+
+                // Inner shape: circle for idle, rounded square for active (stop)
+                if viewModel.listeningState == .active {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.red)
+                        .frame(width: 20, height: 20)
+                        .transition(.scale.combined(with: .opacity))
+                } else {
+                    Circle()
+                        .fill(recordButtonFillColor)
+                        .frame(width: 36, height: 36)
+                        .transition(.scale.combined(with: .opacity))
+                }
+
+                // Loading state overlay
+                if viewModel.listeningState == .starting || viewModel.listeningState == .stopping {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                        .tint(.secondary)
+                }
             }
+            .animation(.spring(response: 0.35, dampingFraction: 0.7), value: viewModel.listeningState)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(viewModel.listeningState == .active ? .red : .accentColor)
+        .buttonStyle(.plain)
         .disabled(viewModel.listeningState == .starting || viewModel.listeningState == .stopping)
+        .accessibilityLabel(recordButtonAccessibilityLabel)
     }
 
-    private var listenButtonIcon: String {
+    private var recordButtonRingColor: Color {
         switch viewModel.listeningState {
-        case .idle: "record.circle"
-        case .starting: "hourglass"
-        case .active: "stop.circle.fill"
-        case .stopping: "hourglass"
+        case .idle: .secondary.opacity(0.4)
+        case .starting, .stopping: .secondary.opacity(0.3)
+        case .active: .red.opacity(0.6)
         }
     }
 
-    private var listenButtonTitle: String {
+    private var recordButtonFillColor: Color {
         switch viewModel.listeningState {
-        case .idle: "Start"
-        case .starting: "Starting..."
-        case .active: "Stop"
-        case .stopping: "Stopping..."
+        case .idle: .red
+        case .starting, .stopping: .red.opacity(0.4)
+        case .active: .red
         }
     }
+
+    private var recordButtonAccessibilityLabel: String {
+        switch viewModel.listeningState {
+        case .idle: "Start recording"
+        case .starting: "Starting"
+        case .active: "Stop recording"
+        case .stopping: "Stopping"
+        }
+    }
+
+    // MARK: - Right Controls
+
+    private var rightControls: some View {
+        HStack(spacing: 10) {
+            // Transcription language picker
+            languagePicker
+
+            // Translation controls
+            translationControls
+
+            // Export button
+            exportButton
+        }
+    }
+
+    // MARK: - Audio Source Picker
 
     private var audioSourcePicker: some View {
         Menu {
@@ -93,6 +146,9 @@ struct ControlBarView: View {
                 viewModel.audioSource = .microphone
             } label: {
                 Label("Microphone", systemImage: "mic.fill")
+                if case .microphone = viewModel.audioSource {
+                    Image(systemName: "checkmark")
+                }
             }
 
             Divider()
@@ -104,25 +160,41 @@ struct ControlBarView: View {
                     Button {
                         viewModel.audioSource = .appAudio(app)
                     } label: {
-                        Text(app.name)
+                        HStack {
+                            Text(app.name)
+                            if case .appAudio(let target) = viewModel.audioSource, target?.id == app.id {
+                                Image(systemName: "checkmark")
+                            }
+                        }
                     }
                 }
             }
 
             Divider()
 
-            Button("Refresh Apps") {
+            Button {
                 Task {
                     await viewModel.refreshAvailableApps()
                 }
+            } label: {
+                Label("Refresh Apps", systemImage: "arrow.clockwise")
             }
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: audioSourceIcon)
+                    .font(.system(size: 12, weight: .medium))
                 Text(audioSourceName)
+                    .font(.system(size: 11, weight: .medium))
                     .lineLimit(1)
-                    .frame(maxWidth: 100)
+                    .frame(maxWidth: 80, alignment: .leading)
             }
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(.quaternary.opacity(0.5))
+            )
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
@@ -142,6 +214,8 @@ struct ControlBarView: View {
         }
     }
 
+    // MARK: - Language Picker
+
     private var languagePicker: some View {
         Menu {
             ForEach(viewModel.availableLanguages, id: \.identifier) { locale in
@@ -159,33 +233,55 @@ struct ControlBarView: View {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "globe")
-                Text(viewModel.selectedLanguage.localizedString(
-                    forIdentifier: viewModel.selectedLanguage.identifier
-                ) ?? viewModel.selectedLanguage.identifier)
-                .lineLimit(1)
-                .frame(maxWidth: 80)
+                    .font(.system(size: 12, weight: .medium))
+                Text(languageDisplayName)
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(1)
+                    .frame(maxWidth: 72, alignment: .leading)
             }
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(.quaternary.opacity(0.5))
+            )
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
     }
 
+    private var languageDisplayName: String {
+        viewModel.selectedLanguage.localizedString(
+            forIdentifier: viewModel.selectedLanguage.identifier
+        ) ?? viewModel.selectedLanguage.identifier
+    }
+
+    // MARK: - Translation Controls
+
     private var translationControls: some View {
         HStack(spacing: 6) {
-            Toggle(isOn: Bindable(viewModel.translationService).isEnabled) {
-                Image(systemName: "translate")
-            }
-            .toggleStyle(.switch)
-            .controlSize(.small)
-            .onChange(of: viewModel.translationService.isEnabled) {
-                // Ensure source language is synced before creating config
+            // Translation toggle as a compact icon button
+            Button {
+                viewModel.translationService.isEnabled.toggle()
                 viewModel.translationService.updateSourceLanguage(from: viewModel.selectedLanguage)
+            } label: {
+                Image(systemName: "translate")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(viewModel.translationService.isEnabled ? .white : .primary)
+                    .frame(width: 26, height: 26)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(viewModel.translationService.isEnabled
+                                  ? AnyShapeStyle(Color.accentColor)
+                                  : AnyShapeStyle(.quaternary.opacity(0.5)))
+                    )
             }
+            .buttonStyle(.plain)
+            .help(viewModel.translationService.isEnabled ? "Disable translation" : "Enable translation")
 
+            // Target language picker (shown when translation enabled)
             if viewModel.translationService.isEnabled {
-                Text("→")
-                    .foregroundStyle(.secondary)
-
                 Menu {
                     ForEach(commonTranslationLanguages, id: \.minimalIdentifier) { lang in
                         Button {
@@ -201,17 +297,35 @@ struct ControlBarView: View {
                         }
                     }
                 } label: {
-                    Text(Locale.current.localizedString(
-                        forIdentifier: viewModel.translationService.targetLanguage.minimalIdentifier
-                    ) ?? viewModel.translationService.targetLanguage.minimalIdentifier)
-                    .lineLimit(1)
-                    .frame(maxWidth: 80)
+                    HStack(spacing: 3) {
+                        Text(targetLanguageShortName)
+                            .font(.system(size: 11, weight: .medium))
+                            .lineLimit(1)
+                            .frame(maxWidth: 56, alignment: .leading)
+                    }
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(.quaternary.opacity(0.5))
+                    )
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
+                .transition(.opacity.combined(with: .move(edge: .leading)))
             }
         }
+        .animation(.easeInOut(duration: 0.2), value: viewModel.translationService.isEnabled)
     }
+
+    private var targetLanguageShortName: String {
+        Locale.current.localizedString(
+            forIdentifier: viewModel.translationService.targetLanguage.minimalIdentifier
+        ) ?? viewModel.translationService.targetLanguage.minimalIdentifier
+    }
+
+    // MARK: - Export Button
 
     private var exportButton: some View {
         Button {
@@ -220,7 +334,15 @@ struct ControlBarView: View {
             }
         } label: {
             Image(systemName: "square.and.arrow.up")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(viewModel.sentences.isEmpty ? .tertiary : .primary)
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(.quaternary.opacity(0.5))
+                )
         }
+        .buttonStyle(.plain)
         .disabled(viewModel.sentences.isEmpty)
         .help("Export SRT")
     }
