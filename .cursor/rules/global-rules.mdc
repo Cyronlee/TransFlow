@@ -8,3 +8,6 @@ alwaysApply: true
 ## 质量检查
 - 确保 xcode build 成功
 
+## DMG 打包
+- 使用 `build-dmg` skill 打包 DMG（`./scripts/build-dmg.sh`）
+
