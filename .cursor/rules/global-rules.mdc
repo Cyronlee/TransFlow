@@ -1,0 +1,10 @@
+---
+alwaysApply: true
+---
+
+## 开发文档
+- 使用 `apple-docs-mcp` 搜索 macOS 开发文档
+
+## 质量检查
+- 确保 xcode build 成功
+
