@@ -8,7 +8,14 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // ── Top: Transcription history ──
+            // ── Top: Session bar ──
+            SessionBarView(
+                sessionName: viewModel.jsonlStore.currentSessionName
+            ) { name in
+                viewModel.createNewSession(name: name)
+            }
+
+            // ── Middle: Transcription history ──
             TranscriptionView(
                 sentences: viewModel.sentences,
                 isTranslationEnabled: viewModel.translationService.isEnabled

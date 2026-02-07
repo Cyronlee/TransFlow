@@ -76,7 +76,7 @@ enum SRTExporter {
     /// Generate a date string for filename.
     private static func filenameDateString() -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd_HHmmss"
+        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
         return formatter.string(from: Date())
     }
 }

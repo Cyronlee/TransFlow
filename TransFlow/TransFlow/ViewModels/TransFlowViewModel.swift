@@ -33,6 +33,9 @@ final class TransFlowViewModel {
     /// Translation service (observed separately for SwiftUI binding)
     let translationService = TranslationService()
 
+    /// JSONL persistence store for the current session.
+    let jsonlStore = JSONLStore()
+
     // MARK: - Private
 
     private let audioCaptureService = AudioCaptureService()
@@ -50,6 +53,9 @@ final class TransFlowViewModel {
     }
 
     private func initialize() async {
+        // Create initial JSONL session for this app launch
+        jsonlStore.createSession()
+
         // Request microphone permission
         micPermissionGranted = await AudioCaptureService.requestPermission()
 
@@ -178,6 +184,8 @@ final class TransFlowViewModel {
                             sentence.translation = translation
                         }
                         sentences.append(sentence)
+                        // Persist to JSONL
+                        jsonlStore.appendEntry(sentence: sentence)
                         currentPartialText = ""
                         translationService.currentPartialTranslation = ""
 
@@ -205,7 +213,10 @@ final class TransFlowViewModel {
         if !currentPartialText.isEmpty {
             let trimmed = currentPartialText.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty {
-                sentences.append(TranscriptionSentence(timestamp: Date(), text: trimmed))
+                let sentence = TranscriptionSentence(timestamp: Date(), text: trimmed)
+                sentences.append(sentence)
+                // Persist to JSONL
+                jsonlStore.appendEntry(sentence: sentence)
             }
             currentPartialText = ""
         }
@@ -228,6 +239,22 @@ final class TransFlowViewModel {
         } else {
             stopListening()
         }
+    }
+
+    // MARK: - Session
+
+    /// Create a new session, clearing in-memory data and starting a fresh JSONL file.
+    func createNewSession(name: String? = nil) {
+        // Stop listening if active
+        if listeningState != .idle {
+            stopListening()
+        }
+        // Clear in-memory state
+        sentences.removeAll()
+        currentPartialText = ""
+        translationService.currentPartialTranslation = ""
+        // Create new JSONL file
+        jsonlStore.createSession(name: name)
     }
 
     // MARK: - History
