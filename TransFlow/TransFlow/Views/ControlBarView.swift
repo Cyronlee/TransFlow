@@ -97,8 +97,8 @@ struct ControlBarView: View {
         }
         .buttonStyle(.plain)
         .disabled(viewModel.listeningState == .starting || viewModel.listeningState == .stopping)
-        .help(recordButtonHelpText)
-        .accessibilityLabel(recordButtonAccessibilityLabel)
+        .help(Text(recordButtonHelpText))
+        .accessibilityLabel(Text(recordButtonAccessibilityLabel))
     }
 
     private var recordButtonRingColor: Color {
@@ -117,21 +117,21 @@ struct ControlBarView: View {
         }
     }
 
-    private var recordButtonHelpText: String {
+    private var recordButtonHelpText: LocalizedStringKey {
         switch viewModel.listeningState {
-        case .idle: "Start transcription"
-        case .starting: "Starting..."
-        case .active: "Stop transcription"
-        case .stopping: "Stopping..."
+        case .idle: "control.start_transcription"
+        case .starting: "control.starting"
+        case .active: "control.stop_transcription"
+        case .stopping: "control.stopping"
         }
     }
 
-    private var recordButtonAccessibilityLabel: String {
+    private var recordButtonAccessibilityLabel: LocalizedStringKey {
         switch viewModel.listeningState {
-        case .idle: "Start recording"
-        case .starting: "Starting"
-        case .active: "Stop recording"
-        case .stopping: "Stopping"
+        case .idle: "control.start_recording"
+        case .starting: "control.starting"
+        case .active: "control.stop_recording"
+        case .stopping: "control.stopping"
         }
     }
 
@@ -157,7 +157,7 @@ struct ControlBarView: View {
             Button {
                 viewModel.audioSource = .microphone
             } label: {
-                Label("Microphone", systemImage: "mic.fill")
+                Label("control.microphone", systemImage: "mic.fill")
                 if case .microphone = viewModel.audioSource {
                     Image(systemName: "checkmark")
                 }
@@ -166,7 +166,7 @@ struct ControlBarView: View {
             Divider()
 
             if viewModel.availableApps.isEmpty {
-                Text("No apps available")
+                Text("control.no_apps")
             } else {
                 ForEach(viewModel.availableApps) { app in
                     Button {
@@ -189,7 +189,7 @@ struct ControlBarView: View {
                     await viewModel.refreshAvailableApps()
                 }
             } label: {
-                Label("Refresh Apps", systemImage: "arrow.clockwise")
+                Label("control.refresh_apps", systemImage: "arrow.clockwise")
             }
         } label: {
             HStack(spacing: 5) {
@@ -208,7 +208,7 @@ struct ControlBarView: View {
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
-        .help("Audio source")
+        .help(Text("control.audio_source"))
     }
 
     @ViewBuilder
@@ -233,8 +233,8 @@ struct ControlBarView: View {
 
     private var audioSourceName: String {
         switch viewModel.audioSource {
-        case .microphone: "Microphone"
-        case .appAudio(let target): target?.name ?? "App"
+        case .microphone: String(localized: "control.microphone")
+        case .appAudio(let target): target?.name ?? String(localized: "control.app")
         }
     }
 
@@ -273,7 +273,7 @@ struct ControlBarView: View {
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
-        .help("Transcription language")
+        .help(Text("control.transcription_language"))
     }
 
     private var languageDisplayName: String {
@@ -303,7 +303,7 @@ struct ControlBarView: View {
                     )
             }
             .buttonStyle(.plain)
-            .help(viewModel.translationService.isEnabled ? "Disable translation" : "Enable translation")
+            .help(viewModel.translationService.isEnabled ? Text("control.disable_translation") : Text("control.enable_translation"))
 
             // Target language picker (shown when translation enabled)
             if viewModel.translationService.isEnabled {
@@ -338,7 +338,7 @@ struct ControlBarView: View {
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
-                .help("Translation target language")
+                .help(Text("control.translation_target"))
                 .transition(.opacity.combined(with: .move(edge: .leading)))
             }
         }
@@ -370,7 +370,7 @@ struct ControlBarView: View {
         }
         .buttonStyle(.plain)
         .disabled(viewModel.sentences.isEmpty)
-        .help("Export SRT")
+        .help(Text("control.export_srt"))
     }
 
     // MARK: - Constants

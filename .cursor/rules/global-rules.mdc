@@ -11,3 +11,11 @@ alwaysApply: true
 ## DMG 打包
 - 使用 `build-dmg` skill 打包 DMG（`./scripts/build-dmg.sh`）
 
+## 国际化（i18n）
+- 所有用户可见字符串使用 `Localizable.xcstrings` String Catalog，key 格式 `模块.描述`（如 `settings.language`）
+- 支持语言：`en`、`zh-Hans`；新增字符串须同时提供两种翻译
+- SwiftUI 中用 `Text("key")` / `LocalizedStringKey`；纯 `String` 上下文用 `String(localized: "key")`
+
+## 外观模式
+- 通过 `AppSettings.shared.appAppearance` 控制，支持跟随系统 / 浅色 / 深色
+- 在 `TransFlowApp` 根视图使用 `.preferredColorScheme(settings.appAppearance.colorScheme)` 应用

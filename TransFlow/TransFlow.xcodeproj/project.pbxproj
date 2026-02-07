@@ -30,7 +30,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		F4C5EF002F363900006D8A00 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		F4C5EF002F363900006D8A00 /* Exceptions for "TransFlow" folder in "TransFlow" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -43,7 +43,7 @@
 		F4C5EDF62F3638BD006D8A00 /* TransFlow */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				F4C5EF002F363900006D8A00 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+				F4C5EF002F363900006D8A00 /* Exceptions for "TransFlow" folder in "TransFlow" target */,
 			);
 			path = TransFlow;
 			sourceTree = "<group>";
@@ -204,6 +204,7 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				"zh-Hans",
 				Base,
 			);
 			mainGroup = F4C5EDEB2F3638BD006D8A00;

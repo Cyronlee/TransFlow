@@ -2,20 +2,24 @@ import SwiftUI
 
 @main
 struct TransFlowApp: App {
+    @State private var settings = AppSettings.shared
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainView()
+                .environment(\.locale, settings.locale)
+                .preferredColorScheme(settings.appAppearance.colorScheme)
         }
         .windowStyle(.automatic)
         .defaultSize(width: 720, height: 520)
         .commands {
             CommandGroup(after: .pasteboard) {
-                Button("Clear History") {
+                Button("menu.clear_history") {
                     NotificationCenter.default.post(name: .clearHistory, object: nil)
                 }
                 .keyboardShortcut("k", modifiers: .command)
 
-                Button("Export SRT…") {
+                Button("menu.export_srt") {
                     NotificationCenter.default.post(name: .exportSRT, object: nil)
                 }
                 .keyboardShortcut("e", modifiers: [.command, .shift])

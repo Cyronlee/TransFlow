@@ -46,12 +46,12 @@ struct ContentView: View {
                 .font(.system(size: 56, weight: .thin))
                 .foregroundStyle(.quaternary)
 
-            Text("Press Start to begin transcription")
+            Text("empty_state.title")
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(.secondary)
 
             if !viewModel.micPermissionGranted {
-                Label("Microphone permission is required", systemImage: "exclamationmark.triangle")
+                Label("empty_state.mic_permission", systemImage: "exclamationmark.triangle")
                     .font(.system(size: 12))
                     .foregroundStyle(.red.opacity(0.8))
             }
@@ -120,7 +120,7 @@ struct BottomPanelView: View {
                     // Listening indicator when active but no partial text yet
                     HStack(spacing: 6) {
                         TypingIndicatorView()
-                        Text("Listening...")
+                        Text("control.listening")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(.tertiary)
                     }
