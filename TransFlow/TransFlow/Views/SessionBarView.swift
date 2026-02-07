@@ -43,7 +43,7 @@ struct SessionBarView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 6)
-            .background(.ultraThinMaterial)
+            .background(.background)
 
             // Subtle bottom border
             Rectangle()

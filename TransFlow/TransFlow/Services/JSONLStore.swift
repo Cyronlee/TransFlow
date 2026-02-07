@@ -79,6 +79,7 @@ final class JSONLStore {
     // MARK: - History / Reading
 
     /// List all session files sorted by creation date (newest first).
+    /// Reads metadata and counts entries for each file.
     func listSessions() -> [SessionFile] {
         ensureDirectoryExists()
         do {
@@ -91,9 +92,23 @@ final class JSONLStore {
                 .filter { $0.pathExtension == "jsonl" }
                 .compactMap { url -> SessionFile? in
                     let name = url.deletingPathExtension().lastPathComponent
-                    let attrs = try? fileManager.attributesOfItem(atPath: url.path)
-                    let created = attrs?[.creationDate] as? Date ?? Date.distantPast
-                    return SessionFile(name: name, url: url, createdAt: created)
+                    let metadata = readMetadata(from: url)
+                    let entryCount = readEntries(from: url).count
+                    let createdAt: Date
+                    if let timeStr = metadata?.createTime,
+                       let date = ISO8601DateFormatter().date(from: timeStr) {
+                        createdAt = date
+                    } else {
+                        let attrs = try? fileManager.attributesOfItem(atPath: url.path)
+                        createdAt = attrs?[.creationDate] as? Date ?? Date.distantPast
+                    }
+                    return SessionFile(
+                        name: name,
+                        url: url,
+                        createdAt: createdAt,
+                        entryCount: entryCount,
+                        appVersion: metadata?.appVersion
+                    )
                 }
                 .sorted { $0.createdAt > $1.createdAt }
         } catch {
@@ -134,6 +149,63 @@ final class JSONLStore {
         return meta
     }
 
+    // MARK: - File Management
+
+    /// Rename a session file. Returns the updated SessionFile on success.
+    @discardableResult
+    func renameSession(from oldName: String, to newName: String) -> Bool {
+        let oldURL = transcriptionsDirectory.appendingPathComponent("\(oldName).jsonl")
+        let newURL = transcriptionsDirectory.appendingPathComponent("\(newName).jsonl")
+        guard fileManager.fileExists(atPath: oldURL.path),
+              !fileManager.fileExists(atPath: newURL.path) else { return false }
+        do {
+            try fileManager.moveItem(at: oldURL, to: newURL)
+            // If the renamed file is the current session, update the reference
+            if currentSessionName == oldName {
+                currentSessionName = newName
+                currentFileURL = newURL
+            }
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// Delete a session file.
+    @discardableResult
+    func deleteSession(name: String) -> Bool {
+        let url = transcriptionsDirectory.appendingPathComponent("\(name).jsonl")
+        do {
+            try fileManager.removeItem(at: url)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// Delete all session files in the transcriptions directory.
+    /// Returns the number of files successfully deleted.
+    @discardableResult
+    func deleteAllSessions() -> Int {
+        ensureDirectoryExists()
+        var deleted = 0
+        do {
+            let files = try fileManager.contentsOfDirectory(
+                at: transcriptionsDirectory,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )
+            for file in files where file.pathExtension == "jsonl" {
+                // Skip the current active session file
+                if file == currentFileURL { continue }
+                if (try? fileManager.removeItem(at: file)) != nil {
+                    deleted += 1
+                }
+            }
+        } catch {}
+        return deleted
+    }
+
     // MARK: - Helpers
 
     /// Generate a default session name based on current timestamp: yyyy-MM-dd_HH-mm-ss
@@ -165,6 +237,8 @@ struct SessionFile: Identifiable {
     let name: String
     let url: URL
     let createdAt: Date
+    let entryCount: Int
+    let appVersion: String?
 
     var id: String { name }
 }

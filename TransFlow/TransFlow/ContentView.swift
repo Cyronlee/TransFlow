@@ -3,8 +3,11 @@ import Translation
 
 /// Main content view with history area on top and unified bottom panel
 /// (live preview + controls).
+///
+/// The ViewModel is injected from `MainView` so it is created only once
+/// at app launch — not every time the user navigates to this tab.
 struct ContentView: View {
-    @State private var viewModel = TransFlowViewModel()
+    @Bindable var viewModel: TransFlowViewModel
 
     var body: some View {
         VStack(spacing: 0) {
@@ -92,7 +95,7 @@ struct BottomPanelView: View {
             .padding(.horizontal, 20)
             .padding(.top, 12)
             .padding(.bottom, 14)
-            .background(.ultraThinMaterial)
+            .background(.background)
         }
     }
 
@@ -172,5 +175,5 @@ struct TypingIndicatorView: View {
 }
 
 #Preview {
-    ContentView()
+    ContentView(viewModel: TransFlowViewModel())
 }
