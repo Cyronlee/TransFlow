@@ -55,7 +55,9 @@ Update fallback version strings in Swift source:
 
 ### Step 3: Generate release notes
 
-Create `specs/009-release/RELEASE_NOTES.md` based on `git log` since the last tag (or all commits if first release).
+Create `release-notes/vX.Y.Z.md` based on `git log` since the last tag (or all commits if first release).
+
+> **Convention**: All release notes live in the `release-notes/` directory at the repo root, named `v<version>.md` (e.g. `release-notes/v1.0.0.md`).
 
 Release notes template:
 
@@ -105,7 +107,7 @@ git push origin main --tags
 ```bash
 gh release create vX.Y.Z \
   --title "TransFlow vX.Y.Z" \
-  --notes-file specs/009-release/RELEASE_NOTES.md \
+  --notes-file release-notes/vX.Y.Z.md \
   ./build/TransFlow-X.Y.Z.dmg
 ```
 
