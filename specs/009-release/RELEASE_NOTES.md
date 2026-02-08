@@ -1,0 +1,19 @@
+# TransFlow v1.0.0
+
+First official release of TransFlow — a macOS real-time speech transcription and translation app powered by local AI models.
+
+## Features
+
+- **Real-time Speech Transcription** — Capture and transcribe speech in real-time using macOS system microphone
+- **AI-powered Translation** — Translate transcription results with configurable AI models
+- **Session Management** — Automatically save transcription sessions as JSONL files for later review
+- **History Browser** — Browse, preview, rename, and delete past transcription sessions
+- **Export Support** — Export sessions to SRT and Markdown formats
+- **Settings & Customization** — Configure AI model, language preferences, and app appearance (light/dark/system)
+- **Internationalization** — Full support for English and Simplified Chinese (zh-Hans)
+- **DMG Installer** — Professional DMG packaging with custom background
+
+## System Requirements
+
+- macOS 15.0 or later
+- Apple Silicon (arm64) or Intel (x86_64)

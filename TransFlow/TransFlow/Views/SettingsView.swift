@@ -201,13 +201,13 @@ struct SettingsView: View {
     // MARK: - Helpers
 
     private var appVersionString: String {
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
         return "\(version) (\(build))"
     }
 
     private func openFeedback() {
-        if let url = URL(string: "https://github.com/anthropics/transflow/issues") {
+        if let url = URL(string: "https://github.com/Cyronlee/TransFlow/issues") {
             NSWorkspace.shared.open(url)
         }
     }
