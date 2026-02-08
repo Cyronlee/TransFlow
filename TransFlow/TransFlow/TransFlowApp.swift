@@ -3,12 +3,16 @@ import SwiftUI
 @main
 struct TransFlowApp: App {
     @State private var settings = AppSettings.shared
+    @State private var updateChecker = UpdateChecker.shared
 
     var body: some Scene {
         WindowGroup {
             MainView()
                 .environment(\.locale, settings.locale)
                 .preferredColorScheme(settings.appAppearance.colorScheme)
+                .onAppear {
+                    updateChecker.checkOnceOnLaunch()
+                }
         }
         .windowStyle(.automatic)
         .defaultSize(width: 720, height: 520)

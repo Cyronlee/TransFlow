@@ -4,6 +4,7 @@ import SwiftUI
 /// Sections: General (Language), Feedback, About (Version).
 struct SettingsView: View {
     @State private var settings = AppSettings.shared
+    @State private var updateChecker = UpdateChecker.shared
 
     var body: some View {
         ScrollView {
@@ -177,25 +178,94 @@ struct SettingsView: View {
     // MARK: - Version Row
 
     private var versionRow: some View {
-        HStack {
-            Label {
-                Text("settings.version")
-                    .font(.system(size: 13, weight: .regular))
-            } icon: {
-                Image(systemName: "number")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24)
+        Group {
+            switch updateChecker.status {
+            case .updateAvailable(let version, let url):
+                Button {
+                    NSWorkspace.shared.open(url)
+                } label: {
+                    HStack {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("settings.version")
+                                    .font(.system(size: 13, weight: .regular))
+                                    .foregroundStyle(.primary)
+                                Text("settings.update_available \(version)")
+                                    .font(.system(size: 11, weight: .regular))
+                                    .foregroundStyle(.orange)
+                            }
+                        } icon: {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(.orange)
+                                .frame(width: 24)
+                        }
+
+                        Spacer()
+
+                        HStack(spacing: 4) {
+                            Text(appVersionString)
+                                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.tertiary)
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+            case .upToDate:
+                HStack {
+                    Label {
+                        Text("settings.version")
+                            .font(.system(size: 13, weight: .regular))
+                    } icon: {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.green)
+                            .frame(width: 24)
+                    }
+
+                    Spacer()
+
+                    HStack(spacing: 6) {
+                        Text("settings.up_to_date")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.green)
+                        Text(appVersionString)
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+
+            default:
+                HStack {
+                    Label {
+                        Text("settings.version")
+                            .font(.system(size: 13, weight: .regular))
+                    } icon: {
+                        Image(systemName: "number")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 24)
+                    }
+
+                    Spacer()
+
+                    Text(appVersionString)
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
             }
-
-            Spacer()
-
-            Text(appVersionString)
-                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                .foregroundStyle(.tertiary)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
     }
 
     // MARK: - Helpers
