@@ -289,7 +289,11 @@ struct ControlBarView: View {
             // Translation toggle as a compact icon button
             Button {
                 viewModel.translationService.isEnabled.toggle()
-                viewModel.translationService.updateSourceLanguage(from: viewModel.selectedLanguage)
+                if viewModel.translationService.isEnabled {
+                    viewModel.translationService.updateSourceLanguage(from: viewModel.selectedLanguage)
+                } else {
+                    viewModel.translationService.updateConfiguration()
+                }
             } label: {
                 Image(systemName: "translate")
                     .font(.system(size: 12, weight: .medium))
