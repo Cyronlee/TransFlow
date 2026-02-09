@@ -96,6 +96,13 @@ struct ControlBarView: View {
             .frame(width: 70, height: 70)
         }
         .buttonStyle(.plain)
+        .onHover { hovering in
+            if hovering {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
         .disabled(viewModel.listeningState == .starting || viewModel.listeningState == .stopping)
         .help(Text(recordButtonHelpText))
         .accessibilityLabel(Text(recordButtonAccessibilityLabel))
