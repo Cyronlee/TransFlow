@@ -126,7 +126,7 @@ final class TranslationService {
     /// Translate a completed sentence.
     /// Returns nil if translation is disabled, session is unavailable, or the task is cancelled.
     func translateSentence(_ text: String) async -> String? {
-        guard isEnabled, let session else { return nil }
+        guard isEnabled, session != nil else { return nil }
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
 
         let taskID = UUID()

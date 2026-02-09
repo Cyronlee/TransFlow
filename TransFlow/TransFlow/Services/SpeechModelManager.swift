@@ -260,8 +260,6 @@ final class SpeechModelManager {
 
     /// The maximum number of locales the app can reserve.
     var maximumReservedLocales: Int {
-        get async {
-            await AssetInventory.maximumReservedLocales
-        }
+        AssetInventory.maximumReservedLocales
     }
 }
