@@ -497,7 +497,7 @@ struct SettingsView: View {
     // MARK: - Helpers
 
     private var appVersionString: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.1.0"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.2.0"
     }
 
     // MARK: - Open Logs Row
