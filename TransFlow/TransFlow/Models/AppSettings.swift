@@ -73,6 +73,13 @@ final class AppSettings {
         }
     }
 
+    /// The selected speech recognition engine.
+    var selectedEngine: TranscriptionEngineKind {
+        didSet {
+            UserDefaults.standard.set(selectedEngine.rawValue, forKey: "selectedEngine")
+        }
+    }
+
     /// The resolved locale used for SwiftUI environment.
     var locale: Locale
 
@@ -83,6 +90,9 @@ final class AppSettings {
 
         let storedAppearance = UserDefaults.standard.string(forKey: "appAppearance") ?? "system"
         self.appAppearance = AppAppearance(rawValue: storedAppearance) ?? .system
+
+        let storedEngine = UserDefaults.standard.string(forKey: "selectedEngine") ?? "apple"
+        self.selectedEngine = TranscriptionEngineKind(rawValue: storedEngine) ?? .apple
 
         if let identifier = language.localeIdentifier {
             self.locale = Locale(identifier: identifier)

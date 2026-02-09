@@ -1,4 +1,41 @@
-import Foundation
+import SwiftUI
+
+/// Which speech-to-text backend to use.
+enum TranscriptionEngineKind: String, CaseIterable, Identifiable, Sendable {
+    case apple = "apple"
+    case parakeetLocal = "parakeetLocal"
+
+    var id: String { rawValue }
+
+    var displayName: LocalizedStringKey {
+        switch self {
+        case .apple: "settings.engine.apple"
+        case .parakeetLocal: "settings.engine.parakeet"
+        }
+    }
+}
+
+/// Status of the locally-downloaded Parakeet model.
+enum LocalModelStatus: Equatable, Sendable {
+    /// Model files have not been downloaded yet.
+    case notDownloaded
+    /// Download is in progress.
+    case downloading(progress: Double)
+    /// Model is validated and ready to use.
+    case ready
+    /// Download or validation failed.
+    case failed(message: String)
+
+    var isReady: Bool {
+        if case .ready = self { return true }
+        return false
+    }
+
+    var isDownloading: Bool {
+        if case .downloading = self { return true }
+        return false
+    }
+}
 
 /// A completed transcription sentence with timestamp and optional translation.
 struct TranscriptionSentence: Identifiable, Sendable {

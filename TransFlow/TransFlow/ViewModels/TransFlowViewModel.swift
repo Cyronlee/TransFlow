@@ -35,8 +35,11 @@ final class TransFlowViewModel {
     /// Translation service (observed separately for SwiftUI binding)
     let translationService = TranslationService()
 
-    /// Speech model manager for asset checking and downloading.
+    /// Apple Speech model manager for asset checking and downloading.
     let modelManager = SpeechModelManager.shared
+
+    /// Local Parakeet model manager for download/validation.
+    let localModelManager = LocalModelManager.shared
 
     /// JSONL persistence store for the current session.
     let jsonlStore = JSONLStore()
@@ -44,7 +47,7 @@ final class TransFlowViewModel {
     // MARK: - Private
 
     private let audioCaptureService = AudioCaptureService()
-    private var speechEngine: SpeechEngine?
+    private var speechEngine: (any TranscriptionEngine)?
     private var stopAudioCapture: (@Sendable () -> Void)?
     private var listeningTask: Task<Void, Never>?
     private var audioLevelTask: Task<Void, Never>?
@@ -73,30 +76,44 @@ final class TransFlowViewModel {
         // Load available apps
         await refreshAvailableApps()
 
-        // Check model status for the default transcription language
-        await modelManager.checkCurrentStatus(for: selectedLanguage)
-
-        // Auto-download model if not installed
-        if !modelManager.currentModelStatus.isReady {
-            await modelManager.ensureModelReady(for: selectedLanguage)
+        // Engine-specific initialization
+        let engine = AppSettings.shared.selectedEngine
+        if engine == .apple {
+            // Check model status for the default transcription language
+            await modelManager.checkCurrentStatus(for: selectedLanguage)
+            if !modelManager.currentModelStatus.isReady {
+                await modelManager.ensureModelReady(for: selectedLanguage)
+            }
+        } else {
+            // Parakeet: check local model status
+            localModelManager.checkStatus()
         }
     }
 
     // MARK: - Language
 
     func loadSupportedLanguages() async {
-        let locales = await SpeechTranscriber.supportedLocales
-        availableLanguages = locales.map { Locale(identifier: $0.language.minimalIdentifier) }
-            .sorted { $0.identifier < $1.identifier }
+        if AppSettings.shared.selectedEngine == .apple {
+            let locales = await SpeechTranscriber.supportedLocales
+            availableLanguages = locales.map { Locale(identifier: $0.language.minimalIdentifier) }
+                .sorted { $0.identifier < $1.identifier }
+        } else {
+            // Parakeet TDT 0.6B v2 supports English only
+            availableLanguages = [Locale(identifier: "en-US")]
+            selectedLanguage = Locale(identifier: "en-US")
+        }
     }
 
     func switchLanguage(to locale: Locale) {
+        // Language switching only applies to Apple engine
+        guard AppSettings.shared.selectedEngine == .apple else { return }
+
         let wasListening = listeningState == .active
         if wasListening {
             stopListening()
         }
         selectedLanguage = locale
-        speechEngine = SpeechEngine(locale: locale)
+        speechEngine = AppleSpeechEngine(locale: locale)
 
         // Sync transcription language to translation source language
         translationService.updateSourceLanguage(from: locale)
@@ -128,15 +145,32 @@ final class TransFlowViewModel {
 
         listeningTask = Task {
             do {
-                // Ensure model is ready before starting
-                let modelReady = await modelManager.ensureModelReady(for: selectedLanguage)
-                guard modelReady else {
-                    showModelNotReadyAlert = true
-                    listeningState = .idle
-                    return
+                // Create the appropriate engine based on settings
+                let selectedEngineKind = AppSettings.shared.selectedEngine
+                let engine: any TranscriptionEngine
+
+                switch selectedEngineKind {
+                case .apple:
+                    // Ensure Apple Speech model is ready
+                    let modelReady = await modelManager.ensureModelReady(for: selectedLanguage)
+                    guard modelReady else {
+                        showModelNotReadyAlert = true
+                        listeningState = .idle
+                        return
+                    }
+                    engine = AppleSpeechEngine(locale: selectedLanguage)
+
+                case .parakeetLocal:
+                    // Ensure Parakeet model is downloaded and ready
+                    localModelManager.checkStatus()
+                    guard localModelManager.status.isReady else {
+                        showModelNotReadyAlert = true
+                        listeningState = .idle
+                        return
+                    }
+                    engine = ParakeetSpeechEngine(modelDirectory: localModelManager.modelDirectory)
                 }
 
-                let engine = SpeechEngine(locale: selectedLanguage)
                 self.speechEngine = engine
 
                 // Start audio capture based on source

@@ -7,6 +7,7 @@ struct SettingsView: View {
     @State private var settings = AppSettings.shared
     @State private var updateChecker = UpdateChecker.shared
     @State private var modelManager = SpeechModelManager.shared
+    @State private var localModelManager = LocalModelManager.shared
     @State private var hasLoadedModels = false
 
     var body: some View {
@@ -23,13 +24,28 @@ struct SettingsView: View {
                     appearanceRow
                 }
 
-                // ── Speech Models Section ──
+                // ── Speech Recognition Engine Section ──
                 settingsSection(
-                    header: "settings.speech_models",
-                    icon: "waveform.badge.mic",
-                    iconColor: .indigo
+                    header: "settings.engine",
+                    icon: "brain",
+                    iconColor: .green
                 ) {
-                    speechModelsContent
+                    enginePickerRow
+                    if settings.selectedEngine == .parakeetLocal {
+                        Divider().padding(.leading, 46)
+                        localModelContent
+                    }
+                }
+
+                // ── Speech Models Section (Apple engine only) ──
+                if settings.selectedEngine == .apple {
+                    settingsSection(
+                        header: "settings.speech_models",
+                        icon: "waveform.badge.mic",
+                        iconColor: .indigo
+                    ) {
+                        speechModelsContent
+                    }
                 }
 
                 // ── Feedback Section ──
@@ -437,6 +453,211 @@ struct SettingsView: View {
 
         case .unsupported, .checking:
             EmptyView()
+        }
+    }
+
+    // MARK: - Engine Picker
+
+    private var enginePickerRow: some View {
+        HStack {
+            Label {
+                Text("settings.engine")
+                    .font(.system(size: 13, weight: .regular))
+            } icon: {
+                Image(systemName: "waveform")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.green)
+                    .frame(width: 24)
+            }
+
+            Spacer()
+
+            Picker("", selection: $settings.selectedEngine) {
+                ForEach(TranscriptionEngineKind.allCases) { engine in
+                    Text(engine.displayName)
+                        .tag(engine)
+                }
+            }
+            .pickerStyle(.menu)
+            .fixedSize()
+            .tint(.secondary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    // MARK: - Local Model Content
+
+    private var localModelContent: some View {
+        VStack(spacing: 0) {
+            // Model status row
+            localModelStatusRow
+            Divider().padding(.leading, 46)
+            // Action row (download / delete)
+            localModelActionRow
+            Divider().padding(.leading, 46)
+            // License notice
+            localModelLicenseRow
+        }
+    }
+
+    private var localModelStatusRow: some View {
+        HStack(spacing: 8) {
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("settings.model.parakeet_name")
+                        .font(.system(size: 13, weight: .regular))
+                    Text(localModelStatusText)
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(localModelStatusColor)
+                }
+            } icon: {
+                localModelStatusIcon
+                    .frame(width: 24)
+            }
+
+            Spacer()
+
+            if localModelManager.status.isReady {
+                Text(formattedDiskSize)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private var localModelStatusIcon: some View {
+        switch localModelManager.status {
+        case .ready:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.green)
+        case .notDownloaded:
+            Image(systemName: "arrow.down.circle")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.secondary)
+        case .downloading:
+            ProgressView()
+                .controlSize(.small)
+                .frame(width: 14, height: 14)
+        case .failed:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.orange)
+        }
+    }
+
+    private var localModelStatusText: LocalizedStringKey {
+        switch localModelManager.status {
+        case .ready:
+            "settings.model.status.ready"
+        case .notDownloaded:
+            "settings.model.status.not_downloaded"
+        case .downloading(let progress):
+            "settings.model.status.downloading \(Int(progress * 100))"
+        case .failed(let message):
+            "settings.model.status.failed \(message)"
+        }
+    }
+
+    private var localModelStatusColor: Color {
+        switch localModelManager.status {
+        case .ready: .green
+        case .notDownloaded: .secondary
+        case .downloading: .blue
+        case .failed: .orange
+        }
+    }
+
+    private var localModelActionRow: some View {
+        HStack {
+            Label {
+                Text("settings.model.manage")
+                    .font(.system(size: 13, weight: .regular))
+            } icon: {
+                Image(systemName: "internaldrive")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24)
+            }
+
+            Spacer()
+
+            switch localModelManager.status {
+            case .notDownloaded, .failed:
+                Button {
+                    localModelManager.download()
+                } label: {
+                    Text("settings.model.download")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .fill(Color.accentColor)
+                        )
+                }
+                .buttonStyle(.plain)
+
+            case .downloading(let progress):
+                ProgressView(value: progress, total: 1.0)
+                    .progressViewStyle(.linear)
+                    .frame(width: 80)
+                    .tint(.blue)
+
+            case .ready:
+                Button {
+                    localModelManager.delete()
+                } label: {
+                    Text("settings.model.delete")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .fill(Color.red)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+    }
+
+    private var localModelLicenseRow: some View {
+        HStack {
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("settings.model.license_notice")
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(.tertiary)
+                }
+            } icon: {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 24)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+    }
+
+    private var formattedDiskSize: String {
+        let bytes = localModelManager.diskSizeBytes
+        if bytes < 1_000_000 {
+            return "\(bytes / 1_000) KB"
+        } else if bytes < 1_000_000_000 {
+            return String(format: "%.0f MB", Double(bytes) / 1_000_000)
+        } else {
+            return String(format: "%.1f GB", Double(bytes) / 1_000_000_000)
         }
     }
 
