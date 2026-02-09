@@ -22,6 +22,7 @@ final class SpeechEngine: Sendable {
                 guard let supportedLocale = await SpeechTranscriber.supportedLocale(
                     equivalentTo: locale
                 ) else {
+                    ErrorLogger.shared.log("Language \(locale.identifier) not supported", source: "SpeechEngine")
                     continuation.yield(.error("Language \(locale.identifier) not supported"))
                     continuation.finish()
                     return
@@ -86,6 +87,7 @@ final class SpeechEngine: Sendable {
                             }
                         }
                     } catch {
+                        ErrorLogger.shared.log("Speech error: \(error.localizedDescription)", source: "SpeechEngine")
                         continuation.yield(.error("Speech error: \(error.localizedDescription)"))
                     }
                 }
@@ -122,6 +124,7 @@ final class SpeechEngine: Sendable {
                 resultTask.cancel()
 
             } catch {
+                ErrorLogger.shared.log("Engine error: \(error.localizedDescription)", source: "SpeechEngine")
                 continuation.yield(.error("Engine error: \(error.localizedDescription)"))
             }
             continuation.finish()

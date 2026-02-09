@@ -39,6 +39,8 @@ struct SettingsView: View {
                     iconColor: .blue
                 ) {
                     feedbackRow
+                    Divider().padding(.leading, 46)
+                    openLogsRow
                 }
 
                 // ── About Section ──
@@ -444,6 +446,42 @@ struct SettingsView: View {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
         return "\(version) (\(build))"
+    }
+
+    // MARK: - Open Logs Row
+
+    private var openLogsRow: some View {
+        Button {
+            ErrorLogger.shared.openLogsFolder()
+        } label: {
+            HStack {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("settings.open_logs")
+                            .font(.system(size: 13, weight: .regular))
+                            .foregroundStyle(.primary)
+                        Text("settings.open_logs_description")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(.tertiary)
+                    }
+                } icon: {
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 24)
+                }
+
+                Spacer()
+
+                Image(systemName: "folder")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func openFeedback() {

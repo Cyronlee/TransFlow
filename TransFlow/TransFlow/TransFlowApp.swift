@@ -5,6 +5,9 @@ struct TransFlowApp: App {
     @State private var settings = AppSettings.shared
     @State private var updateChecker = UpdateChecker.shared
 
+    /// Reference to the shared logger so its log file is created at launch.
+    private let errorLogger = ErrorLogger.shared
+
     var body: some Scene {
         WindowGroup {
             MainView()

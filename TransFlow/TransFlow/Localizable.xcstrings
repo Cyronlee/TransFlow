@@ -1061,6 +1061,40 @@
         }
       }
     },
+    "settings.open_logs" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Error Logs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "错误日志"
+          }
+        }
+      }
+    },
+    "settings.open_logs_description" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open logs folder for troubleshooting"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开日志文件夹以排查问题"
+          }
+        }
+      }
+    },
     "settings.speech_models" : {
       "extractionState" : "manual",
       "localizations" : {

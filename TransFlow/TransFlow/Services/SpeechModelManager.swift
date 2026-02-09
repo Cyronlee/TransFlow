@@ -207,6 +207,7 @@ final class SpeechModelManager {
             return finalStatus.isReady
 
         } catch {
+            ErrorLogger.shared.log("Model download failed for \(locale.identifier): \(error.localizedDescription)", source: "SpeechModel")
             let failedStatus = SpeechModelStatus.failed(message: error.localizedDescription)
             currentModelStatus = failedStatus
             localeStatuses[locale.identifier] = failedStatus

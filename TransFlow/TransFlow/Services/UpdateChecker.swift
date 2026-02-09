@@ -65,6 +65,7 @@ final class UpdateChecker {
             }
         } catch {
             // Silently fail — offline or API error should not affect the user.
+            ErrorLogger.shared.log("Update check failed: \(error.localizedDescription)", source: "UpdateChecker")
             status = .failed
         }
     }

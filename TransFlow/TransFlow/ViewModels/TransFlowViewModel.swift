@@ -147,6 +147,7 @@ final class TransFlowViewModel {
                 case .microphone:
                     guard micPermissionGranted else {
                         errorMessage = "Microphone permission not granted"
+                        ErrorLogger.shared.log("Microphone permission not granted", source: "AudioCapture")
                         listeningState = .idle
                         return
                     }
@@ -157,6 +158,7 @@ final class TransFlowViewModel {
                 case .appAudio(let target):
                     guard let target else {
                         errorMessage = "No app selected"
+                        ErrorLogger.shared.log("No app selected for audio capture", source: "AudioCapture")
                         listeningState = .idle
                         return
                     }
@@ -220,6 +222,7 @@ final class TransFlowViewModel {
 
                     case .error(let message):
                         errorMessage = message
+                        ErrorLogger.shared.log(message, source: "Transcription")
                     }
                 }
 
@@ -227,6 +230,7 @@ final class TransFlowViewModel {
 
             } catch {
                 errorMessage = error.localizedDescription
+                ErrorLogger.shared.log("Listening failed: \(error.localizedDescription)", source: "AudioCapture")
             }
 
             listeningState = .idle

@@ -73,6 +73,7 @@ final class AppAudioCaptureService: NSObject, Sendable {
                 return true
             }
         } catch {
+            ErrorLogger.shared.log("Failed to fetch available apps: \(error.localizedDescription)", source: "AppAudioCapture")
             return []
         }
     }

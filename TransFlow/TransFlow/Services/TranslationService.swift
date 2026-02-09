@@ -92,6 +92,7 @@ final class TranslationService {
             try await prepSession.prepareTranslation()
         } catch {
             // Don't block — the session may still work for already-downloaded pairs
+            ErrorLogger.shared.log("Translation session prepare failed: \(error.localizedDescription)", source: "Translation")
         }
 
         self.session = session
@@ -115,6 +116,7 @@ final class TranslationService {
             let response = try await currentSession.translate(text)
             return response.targetText
         } catch {
+            ErrorLogger.shared.log("Sentence translation failed: \(error.localizedDescription)", source: "Translation")
             return nil
         }
     }
@@ -147,6 +149,7 @@ final class TranslationService {
                 let response = try await currentSession.translate(text)
                 results.append(response.targetText)
             } catch {
+                ErrorLogger.shared.log("Batch translation failed for text: \(error.localizedDescription)", source: "Translation")
                 results.append(nil)
             }
         }
