@@ -39,12 +39,8 @@ final class SpeechEngine: Sendable {
                     compatibleWith: [transcriber]
                 )
 
-                // 3. Ensure speech model assets are installed
-                if let installRequest = try await AssetInventory.assetInstallationRequest(
-                    supporting: [transcriber]
-                ) {
-                    try await installRequest.downloadAndInstall()
-                }
+                // 3. Model assets are managed by SpeechModelManager;
+                //    assume they are installed before processStream is called.
 
                 // 4. Create SpeechAnalyzer and warm up
                 let analyzer = SpeechAnalyzer(modules: [transcriber])

@@ -19,6 +19,9 @@ struct MainView: View {
             detailView
         }
         .navigationSplitViewStyle(.balanced)
+        .onReceive(NotificationCenter.default.publisher(for: .navigateToSettings)) { _ in
+            selectedDestination = .settings
+        }
     }
 
     @ViewBuilder

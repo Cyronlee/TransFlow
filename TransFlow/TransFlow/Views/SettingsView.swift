@@ -1,10 +1,13 @@
 import SwiftUI
+import Speech
 
 /// Settings page with Apple-grade design.
-/// Sections: General (Language), Feedback, About (Version).
+/// Sections: General (Language), Speech Models, Feedback, About (Version).
 struct SettingsView: View {
     @State private var settings = AppSettings.shared
     @State private var updateChecker = UpdateChecker.shared
+    @State private var modelManager = SpeechModelManager.shared
+    @State private var hasLoadedModels = false
 
     var body: some View {
         ScrollView {
@@ -18,6 +21,15 @@ struct SettingsView: View {
                     languageRow
                     Divider().padding(.leading, 46)
                     appearanceRow
+                }
+
+                // ── Speech Models Section ──
+                settingsSection(
+                    header: "settings.speech_models",
+                    icon: "waveform.badge.mic",
+                    iconColor: .indigo
+                ) {
+                    speechModelsContent
                 }
 
                 // ── Feedback Section ──
@@ -43,6 +55,11 @@ struct SettingsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.background)
+        .task {
+            guard !hasLoadedModels else { return }
+            hasLoadedModels = true
+            await modelManager.refreshAllStatuses()
+        }
     }
 
     // MARK: - Section Builder
@@ -265,6 +282,159 @@ struct SettingsView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
             }
+        }
+    }
+
+    // MARK: - Speech Models Content
+
+    private var speechModelsContent: some View {
+        VStack(spacing: 0) {
+            if modelManager.supportedLocales.isEmpty {
+                // Loading state
+                HStack {
+                    Label {
+                        Text("settings.models_loading")
+                            .font(.system(size: 13, weight: .regular))
+                    } icon: {
+                        ProgressView()
+                            .controlSize(.small)
+                            .frame(width: 24, height: 14)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+            } else {
+                ForEach(Array(modelManager.supportedLocales.enumerated()), id: \.element.identifier) { index, locale in
+                    if index > 0 {
+                        Divider().padding(.leading, 46)
+                    }
+                    speechModelRow(for: locale)
+                }
+            }
+        }
+    }
+
+    private func speechModelRow(for locale: Locale) -> some View {
+        let status = modelManager.localeStatuses[locale.identifier] ?? .checking
+        let displayName = locale.localizedString(forIdentifier: locale.identifier) ?? locale.identifier
+
+        return HStack(spacing: 8) {
+            // Locale icon and name
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(displayName)
+                        .font(.system(size: 13, weight: .regular))
+                    Text(statusDescription(for: status))
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(statusColor(for: status))
+                }
+            } icon: {
+                statusIcon(for: status)
+                    .frame(width: 24)
+            }
+
+            Spacer()
+
+            // Action button or progress
+            speechModelAction(for: locale, status: status)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private func statusIcon(for status: SpeechModelStatus) -> some View {
+        switch status {
+        case .installed:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.green)
+        case .notDownloaded:
+            Image(systemName: "arrow.down.circle")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.secondary)
+        case .downloading:
+            ProgressView()
+                .controlSize(.small)
+                .frame(width: 14, height: 14)
+        case .failed:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.orange)
+        case .unsupported:
+            Image(systemName: "xmark.circle")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.tertiary)
+        case .checking:
+            ProgressView()
+                .controlSize(.small)
+                .frame(width: 14, height: 14)
+        }
+    }
+
+    private func statusDescription(for status: SpeechModelStatus) -> LocalizedStringKey {
+        switch status {
+        case .installed:
+            "model_status.installed"
+        case .notDownloaded:
+            "model_status.not_downloaded"
+        case .downloading(let progress):
+            "model_status.downloading_percent \(Int(progress * 100))"
+        case .failed(let message):
+            LocalizedStringKey("model_status.failed_detail \(message)")
+        case .unsupported:
+            "model_status.unsupported"
+        case .checking:
+            "model_status.checking"
+        }
+    }
+
+    private func statusColor(for status: SpeechModelStatus) -> Color {
+        switch status {
+        case .installed: .green
+        case .notDownloaded: .secondary
+        case .downloading: .blue
+        case .failed: .orange
+        case .unsupported: .secondary.opacity(0.5)
+        case .checking: .secondary
+        }
+    }
+
+    @ViewBuilder
+    private func speechModelAction(for locale: Locale, status: SpeechModelStatus) -> some View {
+        switch status {
+        case .notDownloaded, .failed:
+            Button {
+                Task {
+                    await modelManager.downloadModel(for: locale)
+                }
+            } label: {
+                Text("model_action.download")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(Color.accentColor)
+                    )
+            }
+            .buttonStyle(.plain)
+
+        case .downloading(let progress):
+            ProgressView(value: progress, total: 1.0)
+                .progressViewStyle(.linear)
+                .frame(width: 60)
+                .tint(.blue)
+
+        case .installed:
+            Text("model_status.ready")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.green)
+
+        case .unsupported, .checking:
+            EmptyView()
         }
     }
 

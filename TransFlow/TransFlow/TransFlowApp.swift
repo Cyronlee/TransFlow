@@ -37,4 +37,5 @@ struct TransFlowApp: App {
 extension Notification.Name {
     static let clearHistory = Notification.Name("TransFlow.clearHistory")
     static let exportSRT = Notification.Name("TransFlow.exportSRT")
+    static let navigateToSettings = Notification.Name("TransFlow.navigateToSettings")
 }

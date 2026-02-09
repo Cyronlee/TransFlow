@@ -39,6 +39,18 @@ struct ContentView: View {
                 emptyStateView
             }
         }
+        // Model not ready alert — prompts user to download in Settings
+        .alert(
+            "model_alert.title",
+            isPresented: $viewModel.showModelNotReadyAlert
+        ) {
+            Button("model_alert.go_to_settings") {
+                NotificationCenter.default.post(name: .navigateToSettings, object: nil)
+            }
+            Button("session.cancel", role: .cancel) {}
+        } message: {
+            Text("model_alert.message")
+        }
         // Menu command handlers
         .onReceive(NotificationCenter.default.publisher(for: .clearHistory)) { _ in
             viewModel.clearHistory()

@@ -27,11 +27,16 @@ final class TransFlowViewModel {
     var availableApps: [AppAudioTarget] = []
     /// Error message
     var errorMessage: String?
+    /// Whether to show the "model not ready" alert prompting user to go to Settings.
+    var showModelNotReadyAlert: Bool = false
     /// Microphone permission granted
     var micPermissionGranted: Bool = false
 
     /// Translation service (observed separately for SwiftUI binding)
     let translationService = TranslationService()
+
+    /// Speech model manager for asset checking and downloading.
+    let modelManager = SpeechModelManager.shared
 
     /// JSONL persistence store for the current session.
     let jsonlStore = JSONLStore()
@@ -67,6 +72,14 @@ final class TransFlowViewModel {
 
         // Load available apps
         await refreshAvailableApps()
+
+        // Check model status for the default transcription language
+        await modelManager.checkCurrentStatus(for: selectedLanguage)
+
+        // Auto-download model if not installed
+        if !modelManager.currentModelStatus.isReady {
+            await modelManager.ensureModelReady(for: selectedLanguage)
+        }
     }
 
     // MARK: - Language
@@ -88,6 +101,14 @@ final class TransFlowViewModel {
         // Sync transcription language to translation source language
         translationService.updateSourceLanguage(from: locale)
 
+        // Check and download model for the new language
+        Task {
+            await modelManager.checkCurrentStatus(for: locale)
+            if !modelManager.currentModelStatus.isReady {
+                await modelManager.ensureModelReady(for: locale)
+            }
+        }
+
         if wasListening {
             startListening()
         }
@@ -107,6 +128,14 @@ final class TransFlowViewModel {
 
         listeningTask = Task {
             do {
+                // Ensure model is ready before starting
+                let modelReady = await modelManager.ensureModelReady(for: selectedLanguage)
+                guard modelReady else {
+                    showModelNotReadyAlert = true
+                    listeningState = .idle
+                    return
+                }
+
                 let engine = SpeechEngine(locale: selectedLanguage)
                 self.speechEngine = engine
 
