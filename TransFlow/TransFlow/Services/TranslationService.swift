@@ -16,6 +16,9 @@ final class TranslationService {
     private var session: TranslationSession?
     private var debounceTask: Task<Void, Never>?
 
+    /// Tracks in-flight translation tasks so they can be cancelled when the session is invalidated.
+    private var activeTranslationTasks: [UUID: Task<String?, Never>] = [:]
+
     /// Currently translated partial text
     var currentPartialTranslation: String = ""
 
@@ -59,6 +62,7 @@ final class TranslationService {
     /// Update the configuration to trigger a new translation session.
     func updateConfiguration() {
         guard isEnabled else {
+            cancelAllTranslations()
             configuration = nil
             session = nil
             currentPartialTranslation = ""
@@ -75,9 +79,13 @@ final class TranslationService {
             return
         }
 
+        // Cancel any in-flight translations before invalidating the old session
+        cancelAllTranslations()
+
         if configuration != nil {
             configuration?.invalidate()
         }
+        session = nil
         configuration = TranslationSession.Configuration(
             source: source,
             target: targetLanguage
@@ -86,10 +94,8 @@ final class TranslationService {
 
     /// Called from `.translationTask` modifier when a new session is available.
     func handleSession(_ session: TranslationSession) async {
-        // Prepare the translation session (downloads language pair if needed)
-        nonisolated(unsafe) let prepSession = session
         do {
-            try await prepSession.prepareTranslation()
+            try await session.prepareTranslation()
         } catch {
             // Don't block — the session may still work for already-downloaded pairs
             ErrorLogger.shared.log("Translation session prepare failed: \(error.localizedDescription)", source: "Translation")
@@ -100,24 +106,59 @@ final class TranslationService {
 
     /// Clears the current session (e.g. when translation is disabled).
     func clearSession() {
+        cancelAllTranslations()
         session = nil
         currentPartialTranslation = ""
         debounceTask?.cancel()
         debounceTask = nil
     }
 
+    /// Cancel all in-flight translation tasks.
+    private func cancelAllTranslations() {
+        debounceTask?.cancel()
+        debounceTask = nil
+        for (_, task) in activeTranslationTasks {
+            task.cancel()
+        }
+        activeTranslationTasks.removeAll()
+    }
+
     /// Translate a completed sentence.
+    /// Returns nil if translation is disabled, session is unavailable, or the task is cancelled.
     func translateSentence(_ text: String) async -> String? {
         guard isEnabled, let session else { return nil }
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
 
-        nonisolated(unsafe) let currentSession = session
-        do {
-            let response = try await currentSession.translate(text)
-            return response.targetText
-        } catch {
-            ErrorLogger.shared.log("Sentence translation failed: \(error.localizedDescription)", source: "Translation")
-            return nil
+        let taskID = UUID()
+
+        return await withTaskCancellationHandler {
+            // Register this translation so it can be cancelled if the session is invalidated
+            let translationTask = Task { @MainActor () -> String? in
+                defer { activeTranslationTasks.removeValue(forKey: taskID) }
+
+                // Re-check session is still valid before calling translate
+                guard let currentSession = self.session, !Task.isCancelled else { return nil }
+
+                do {
+                    let response = try await currentSession.translate(text)
+                    // Check cancellation after await — session may have been invalidated during the call
+                    guard !Task.isCancelled else { return nil }
+                    return response.targetText
+                } catch is CancellationError {
+                    return nil
+                } catch {
+                    ErrorLogger.shared.log("Sentence translation failed: \(error.localizedDescription)", source: "Translation")
+                    return nil
+                }
+            }
+            activeTranslationTasks[taskID] = translationTask
+
+            return await translationTask.value
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                self?.activeTranslationTasks[taskID]?.cancel()
+                self?.activeTranslationTasks.removeValue(forKey: taskID)
+            }
         }
     }
 
@@ -139,19 +180,18 @@ final class TranslationService {
 
     /// Translate a batch of sentences.
     func translateBatch(_ texts: [String]) async -> [String?] {
-        guard isEnabled, let session else {
+        guard isEnabled, session != nil else {
             return Array(repeating: nil, count: texts.count)
         }
-        nonisolated(unsafe) let currentSession = session
         var results: [String?] = []
         for text in texts {
-            do {
-                let response = try await currentSession.translate(text)
-                results.append(response.targetText)
-            } catch {
-                ErrorLogger.shared.log("Batch translation failed for text: \(error.localizedDescription)", source: "Translation")
-                results.append(nil)
+            guard !Task.isCancelled else {
+                // Fill remaining with nil if cancelled
+                results.append(contentsOf: Array(repeating: nil, count: texts.count - results.count))
+                break
             }
+            let result = await translateSentence(text)
+            results.append(result)
         }
         return results
     }
