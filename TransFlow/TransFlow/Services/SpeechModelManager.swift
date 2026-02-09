@@ -72,6 +72,31 @@ final class SpeechModelManager {
 
     private init() {}
 
+    // MARK: - Reservation Management
+
+    /// Ensure there is at least one free reservation slot by releasing unused reservations.
+    ///
+    /// Apple limits each app to `maximumReservedLocales` (typically 5) reserved locales.
+    /// Since we only need one locale at a time for transcription, we free up old
+    /// reservations before downloading a new model. Downloaded models persist as
+    /// system-managed resources even after their reservation is released.
+    private func ensureReservationSlotAvailable(excluding locale: Locale) async {
+        let reserved = await AssetInventory.reservedLocales
+        guard reserved.count >= AssetInventory.maximumReservedLocales else { return }
+
+        // Release reservations that are not currently being downloaded
+        for reservedLocale in reserved {
+            // Don't release the locale we're about to reserve
+            if reservedLocale.identifier == locale.identifier { continue }
+            // Don't release a locale that is currently downloading
+            if let downloading = downloadingLocale, downloading.identifier == reservedLocale.identifier { continue }
+
+            await AssetInventory.release(reservedLocale: reservedLocale)
+            // One slot freed is enough
+            break
+        }
+    }
+
     // MARK: - Check Status
 
     /// Check the model status for a specific locale.
@@ -180,6 +205,9 @@ final class SpeechModelManager {
         localeStatuses[locale.identifier] = .downloading(progress: 0)
 
         do {
+            // Free up a reservation slot if we're at the limit
+            await ensureReservationSlotAvailable(excluding: supportedLocale)
+
             // Reserve the locale for our app
             try await AssetInventory.reserve(locale: supportedLocale)
 
@@ -247,14 +275,14 @@ final class SpeechModelManager {
     // MARK: - Release
 
     /// Release reserved locale to free up a reservation slot.
+    /// The downloaded model may still be installed after release — the system manages model lifecycle.
     func releaseLocale(_ locale: Locale) async {
         guard let supportedLocale = await SpeechTranscriber.supportedLocale(equivalentTo: locale) else {
             return
         }
         await AssetInventory.release(reservedLocale: supportedLocale)
-        localeStatuses[locale.identifier] = .notDownloaded
 
-        // Refresh to get accurate status
+        // Refresh to get accurate status (model may still be installed)
         let _ = await checkStatus(for: locale)
     }
 
