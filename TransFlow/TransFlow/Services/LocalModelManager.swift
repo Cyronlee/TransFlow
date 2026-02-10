@@ -26,10 +26,13 @@ final class LocalModelManager {
 
     private(set) var statuses: [LocalTranscriptionModelKind: LocalModelStatus]
     private(set) var diskSizeBytesByModel: [LocalTranscriptionModelKind: Int64]
+    private(set) var downloadDetailsByModel: [LocalTranscriptionModelKind: LocalModelDownloadDetail]
 
     // MARK: - Private
 
     private var downloadTasks: [LocalTranscriptionModelKind: Task<Void, Never>] = [:]
+    private var lastProgressSampleTimeByRole: [String: Date] = [:]
+    private var lastProgressSampleBytesByRole: [String: Int64] = [:]
 
     // MARK: - Constants
 
@@ -38,6 +41,9 @@ final class LocalModelManager {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         return appSupport.appending(path: "TransFlow/Models", directoryHint: .isDirectory)
     }()
+    private static let resumeRootRelativePath = ".resume"
+    private static let stagingRootRelativePath = ".staging"
+    private static let maxDownloadRetries = 3
 
     private static let specs: [LocalTranscriptionModelKind: LocalModelSpec] = [
         .parakeetOfflineInt8: LocalModelSpec(
@@ -85,6 +91,7 @@ final class LocalModelManager {
         diskSizeBytesByModel = Dictionary(
             uniqueKeysWithValues: LocalTranscriptionModelKind.allCases.map { ($0, Int64(0)) }
         )
+        downloadDetailsByModel = [:]
         checkAllStatuses()
     }
 
@@ -96,6 +103,7 @@ final class LocalModelManager {
     var modelDirectory: URL { modelDirectory(for: AppSettings.shared.selectedLocalModel) }
     func checkStatus() { checkStatus(for: AppSettings.shared.selectedLocalModel) }
     func download() { download(for: AppSettings.shared.selectedLocalModel) }
+    func cancelDownload() { cancelDownload(for: AppSettings.shared.selectedLocalModel) }
     func delete() { delete(for: AppSettings.shared.selectedLocalModel) }
 
     func status(for kind: LocalTranscriptionModelKind) -> LocalModelStatus {
@@ -104,6 +112,25 @@ final class LocalModelManager {
 
     func diskSizeBytes(for kind: LocalTranscriptionModelKind) -> Int64 {
         diskSizeBytesByModel[kind] ?? 0
+    }
+
+    func downloadDetail(for kind: LocalTranscriptionModelKind) -> LocalModelDownloadDetail? {
+        downloadDetailsByModel[kind]
+    }
+
+    func hasResumeData(for kind: LocalTranscriptionModelKind) -> Bool {
+        guard let spec = Self.specs[kind] else { return false }
+        if FileManager.default.fileExists(atPath: resumeDataURL(for: kind, role: "archive").path(percentEncoded: false)) {
+            return true
+        }
+        for item in spec.supplementalDownloads {
+            if FileManager.default.fileExists(
+                atPath: resumeDataURL(for: kind, role: "supplemental-\(item.fileName)").path(percentEncoded: false)
+            ) {
+                return true
+            }
+        }
+        return false
     }
 
     /// Directory to use for loading the specified model.
@@ -126,6 +153,7 @@ final class LocalModelManager {
         if let readyDir = resolvedReadyDirectory(for: kind) {
             statuses[kind] = .ready
             diskSizeBytesByModel[kind] = computeDiskSize(at: readyDir)
+            downloadDetailsByModel[kind] = nil
             return
         }
 
@@ -135,6 +163,7 @@ final class LocalModelManager {
         }
         statuses[kind] = .notDownloaded
         diskSizeBytesByModel[kind] = 0
+        downloadDetailsByModel[kind] = nil
     }
 
     /// Download model archive (+ supplemental files if configured). No-op if already downloading.
@@ -142,37 +171,12 @@ final class LocalModelManager {
         guard let spec = Self.specs[kind] else { return }
         guard downloadTasks[kind] == nil else { return }
         statuses[kind] = .downloading(progress: 0)
+        downloadDetailsByModel[kind] = nil
 
         downloadTasks[kind] = Task {
             defer { downloadTasks[kind] = nil }
             do {
-                let fm = FileManager.default
-                let destination = primaryDirectory(for: kind)
-                try fm.createDirectory(at: destination, withIntermediateDirectories: true)
-
-                let archiveUpperBound = spec.supplementalDownloads.isEmpty ? 1.0 : 0.9
-                try await downloadAndExtractArchive(
-                    spec.archiveURL,
-                    to: destination,
-                    modelKind: kind,
-                    progressRange: 0.0 ..< archiveUpperBound
-                )
-
-                if !spec.supplementalDownloads.isEmpty {
-                    for (index, item) in spec.supplementalDownloads.enumerated() {
-                        let start = archiveUpperBound
-                            + (Double(index) / Double(spec.supplementalDownloads.count)) * (1.0 - archiveUpperBound)
-                        let end = archiveUpperBound
-                            + (Double(index + 1) / Double(spec.supplementalDownloads.count)) * (1.0 - archiveUpperBound)
-                        try await downloadSupplemental(
-                            item,
-                            to: destination,
-                            modelKind: kind,
-                            progressRange: start ..< end
-                        )
-                    }
-                }
-
+                try await performDownloadWithRetries(spec: spec, kind: kind)
                 checkStatus(for: kind)
                 if !status(for: kind).isReady {
                     statuses[kind] = .failed(message: String(localized: "settings.model.error.validation_failed"))
@@ -181,10 +185,19 @@ final class LocalModelManager {
             } catch is CancellationError {
                 statuses[kind] = .notDownloaded
             } catch {
-                let message = error.localizedDescription
+                let message: String
+                if isTransientDownloadError(error) {
+                    message = String(localized: "settings.model.error.retry_failed \(Self.maxDownloadRetries)")
+                } else {
+                    message = error.localizedDescription
+                }
                 statuses[kind] = .failed(message: message)
                 ErrorLogger.shared.log("Model download failed (\(kind.rawValue)): \(message)", source: "LocalModel")
             }
+            if !(status(for: kind).isReady) {
+                downloadDetailsByModel[kind] = nil
+            }
+            cleanupProgressTracking(for: kind)
         }
     }
 
@@ -197,8 +210,20 @@ final class LocalModelManager {
         for dir in candidateDirectories(for: kind) {
             try? fm.removeItem(at: dir)
         }
+        clearAllResumeData(for: kind)
+        clearStagingDirectories(for: kind)
         statuses[kind] = .notDownloaded
         diskSizeBytesByModel[kind] = 0
+        downloadDetailsByModel[kind] = nil
+        cleanupProgressTracking(for: kind)
+    }
+
+    func cancelDownload(for kind: LocalTranscriptionModelKind) {
+        guard let task = downloadTasks[kind] else { return }
+        task.cancel()
+        statuses[kind] = .notDownloaded
+        downloadDetailsByModel[kind] = nil
+        cleanupProgressTracking(for: kind)
     }
 
     // MARK: - Directory Helpers
@@ -245,96 +270,172 @@ final class LocalModelManager {
 
     // MARK: - Download Helpers
 
-    private func downloadAndExtractArchive(
-        _ archiveURL: URL,
-        to destination: URL,
-        modelKind: LocalTranscriptionModelKind,
-        progressRange: Range<Double>
-    ) async throws {
-        let (tempURL, _) = try await downloadFile(
-            from: archiveURL,
-            modelKind: modelKind,
-            progressRange: progressRange
-        )
-        defer { try? FileManager.default.removeItem(at: tempURL) }
-        try await extractTarball(tempURL, to: destination)
+    private struct DownloadHTTPError: LocalizedError {
+        let statusCode: Int
+        var errorDescription: String? {
+            "HTTP status \(statusCode)"
+        }
     }
 
-    private func downloadSupplemental(
-        _ item: SupplementalDownload,
-        to destination: URL,
-        modelKind: LocalTranscriptionModelKind,
-        progressRange: Range<Double>
-    ) async throws {
-        let (tempURL, _) = try await downloadFile(
-            from: item.url,
-            modelKind: modelKind,
-            progressRange: progressRange
-        )
+    private func performDownloadWithRetries(spec: LocalModelSpec, kind: LocalTranscriptionModelKind) async throws {
+        var attempt = 1
+        while true {
+            do {
+                try await performSingleDownloadAttempt(spec: spec, kind: kind)
+                clearAllResumeData(for: kind)
+                return
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                let retryable = isTransientDownloadError(error) && attempt < Self.maxDownloadRetries
+                guard retryable else { throw error }
+                let delaySeconds = pow(2.0, Double(attempt - 1))
+                ErrorLogger.shared.log(
+                    "Retrying model download (\(kind.rawValue)) attempt \(attempt + 1)/\(Self.maxDownloadRetries) after \(delaySeconds)s",
+                    source: "LocalModel"
+                )
+                try await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
+                attempt += 1
+            }
+        }
+    }
 
-        let dest = destination.appending(path: item.fileName)
+    private func performSingleDownloadAttempt(spec: LocalModelSpec, kind: LocalTranscriptionModelKind) async throws {
         let fm = FileManager.default
-        if fm.fileExists(atPath: dest.path(percentEncoded: false)) {
-            try fm.removeItem(at: dest)
-        }
-        try fm.moveItem(at: tempURL, to: dest)
-    }
+        try fm.createDirectory(at: Self.modelsRoot, withIntermediateDirectories: true)
+        clearStagingDirectories(for: kind)
 
-    /// Download a file with progress reporting.
-    /// Returns the temporary file URL and the HTTP response.
-    private func downloadFile(
-        from url: URL,
-        modelKind: LocalTranscriptionModelKind,
-        progressRange: Range<Double>
-    ) async throws -> (URL, URLResponse) {
-        let config = URLSessionConfiguration.default
-        let session = URLSession(configuration: config)
-        defer { session.finishTasksAndInvalidate() }
-
-        let (asyncBytes, response) = try await session.bytes(from: url)
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200 ..< 300).contains(httpResponse.statusCode)
-        else {
-            throw URLError(.badServerResponse)
-        }
-
-        let expectedLength = response.expectedContentLength
-        let tempURL = FileManager.default.temporaryDirectory
-            .appending(path: UUID().uuidString)
-
-        FileManager.default.createFile(atPath: tempURL.path(percentEncoded: false), contents: nil)
-        let handle = try FileHandle(forWritingTo: tempURL)
-        defer { try? handle.close() }
-
-        var received: Int64 = 0
-        var buffer = Data()
-        let chunkSize = 256 * 1024 // 256 KB write chunks
-
-        for try await byte in asyncBytes {
-            try Task.checkCancellation()
-            buffer.append(byte)
-
-            if buffer.count >= chunkSize {
-                handle.write(buffer)
-                received += Int64(buffer.count)
-                buffer.removeAll(keepingCapacity: true)
-
-                if expectedLength > 0 {
-                    let fileFraction = Double(received) / Double(expectedLength)
-                    let overall = progressRange.lowerBound
-                        + fileFraction * (progressRange.upperBound - progressRange.lowerBound)
-                    statuses[modelKind] = .downloading(progress: min(overall, progressRange.upperBound))
-                }
+        let stagingDir = try makeStagingDirectory(for: kind)
+        var shouldCleanupStaging = true
+        defer {
+            if shouldCleanupStaging {
+                try? fm.removeItem(at: stagingDir)
             }
         }
 
-        // Flush remaining
-        if !buffer.isEmpty {
-            handle.write(buffer)
+        let archiveUpperBound = spec.supplementalDownloads.isEmpty ? 1.0 : 0.9
+        let archiveTempURL = try await downloadFile(
+            from: spec.archiveURL,
+            modelKind: kind,
+            role: "archive",
+            progressRange: 0.0 ..< archiveUpperBound,
+            estimatedModelBytes: spec.estimatedSizeBytes
+        )
+        defer { try? fm.removeItem(at: archiveTempURL) }
+        try await extractTarball(archiveTempURL, to: stagingDir)
+
+        if !spec.supplementalDownloads.isEmpty {
+            for (index, item) in spec.supplementalDownloads.enumerated() {
+                let start = archiveUpperBound
+                    + (Double(index) / Double(spec.supplementalDownloads.count)) * (1.0 - archiveUpperBound)
+                let end = archiveUpperBound
+                    + (Double(index + 1) / Double(spec.supplementalDownloads.count)) * (1.0 - archiveUpperBound)
+
+                let tempURL = try await downloadFile(
+                    from: item.url,
+                    modelKind: kind,
+                    role: "supplemental-\(item.fileName)",
+                    progressRange: start ..< end,
+                    estimatedModelBytes: spec.estimatedSizeBytes
+                )
+                defer { try? fm.removeItem(at: tempURL) }
+
+                let dest = stagingDir.appending(path: item.fileName)
+                if fm.fileExists(atPath: dest.path(percentEncoded: false)) {
+                    try fm.removeItem(at: dest)
+                }
+                try fm.moveItem(at: tempURL, to: dest)
+            }
         }
 
-        return (tempURL, response)
+        guard isModelReady(at: stagingDir, spec: spec) else {
+            throw NSError(
+                domain: "LocalModelManager",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: String(localized: "settings.model.error.validation_failed")]
+            )
+        }
+
+        let destination = primaryDirectory(for: kind)
+        try installAtomically(stagingDir: stagingDir, to: destination)
+        shouldCleanupStaging = false
+        statuses[kind] = .downloading(progress: 1.0)
+    }
+
+    /// Download a single file with resume + progress reporting.
+    /// Returns a temporary local file URL owned by this process.
+    private func downloadFile(
+        from url: URL,
+        modelKind: LocalTranscriptionModelKind,
+        role: String,
+        progressRange: Range<Double>,
+        estimatedModelBytes: Int64
+    ) async throws -> URL {
+        let config = URLSessionConfiguration.default
+        config.waitsForConnectivity = true
+        config.timeoutIntervalForRequest = 60
+        config.timeoutIntervalForResource = 4 * 60 * 60
+
+        let resumeData = loadResumeData(for: modelKind, role: role)
+        let isResuming = resumeData != nil
+        let resumeDataFileURL = resumeDataURL(for: modelKind, role: role)
+        let progressRoleKey = "\(modelKind.rawValue)::\(role)"
+
+        let delegate = ModelDownloadSessionDelegate(
+            onProgress: { [weak self] _, totalBytesWritten, totalBytesExpected in
+                Task { @MainActor [weak self] in
+                    self?.updateDownloadProgress(
+                        modelKind: modelKind,
+                        roleKey: progressRoleKey,
+                        progressRange: progressRange,
+                        written: totalBytesWritten,
+                        expected: totalBytesExpected,
+                        estimatedModelBytes: estimatedModelBytes,
+                        isResuming: isResuming
+                    )
+                }
+            },
+            onResumeData: { data in
+                Self.writeResumeData(data, to: resumeDataFileURL)
+            }
+        )
+
+        let queue = OperationQueue()
+        queue.maxConcurrentOperationCount = 1
+        let session = URLSession(configuration: config, delegate: delegate, delegateQueue: queue)
+        defer { session.finishTasksAndInvalidate() }
+
+        let task: URLSessionDownloadTask
+        if let resumeData {
+            task = session.downloadTask(withResumeData: resumeData)
+        } else {
+            task = session.downloadTask(with: url)
+        }
+        task.priority = URLSessionTask.highPriority
+        task.resume()
+
+        do {
+            let completion = try await withTaskCancellationHandler {
+                try await delegate.waitForCompletion()
+            } onCancel: {
+                task.cancel(byProducingResumeData: { data in
+                    guard let data else { return }
+                    Self.writeResumeData(data, to: resumeDataFileURL)
+                })
+            }
+            clearResumeData(for: modelKind, role: role)
+
+            if let httpResponse = completion.response as? HTTPURLResponse,
+               !(200 ..< 300).contains(httpResponse.statusCode) {
+                throw DownloadHTTPError(statusCode: httpResponse.statusCode)
+            }
+
+            return completion.tempFileURL
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw error
+        }
     }
 
     /// Extract a `.tar.bz2` archive, moving inner files into the destination directory.
@@ -376,6 +477,192 @@ final class LocalModelManager {
             }
             try fm.moveItem(at: file, to: destFile)
         }
+    }
+
+    private func installAtomically(stagingDir: URL, to destination: URL) throws {
+        let fm = FileManager.default
+        try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if fm.fileExists(atPath: destination.path(percentEncoded: false)) {
+            do {
+                _ = try fm.replaceItemAt(destination, withItemAt: stagingDir, backupItemName: nil, options: [])
+                return
+            } catch {
+                try fm.removeItem(at: destination)
+                try fm.moveItem(at: stagingDir, to: destination)
+                return
+            }
+        }
+        try fm.moveItem(at: stagingDir, to: destination)
+    }
+
+    private func updateDownloadProgress(
+        modelKind: LocalTranscriptionModelKind,
+        roleKey: String,
+        progressRange: Range<Double>,
+        written: Int64,
+        expected: Int64,
+        estimatedModelBytes: Int64,
+        isResuming: Bool
+    ) {
+        let now = Date()
+        let previousTime = lastProgressSampleTimeByRole[roleKey]
+        let previousBytes = lastProgressSampleBytesByRole[roleKey]
+        lastProgressSampleTimeByRole[roleKey] = now
+        lastProgressSampleBytesByRole[roleKey] = written
+
+        let bytesPerSecond: Double?
+        if let previousTime, let previousBytes {
+            let elapsed = now.timeIntervalSince(previousTime)
+            let deltaBytes = written - previousBytes
+            if elapsed >= 0.25, deltaBytes > 0 {
+                bytesPerSecond = Double(deltaBytes) / elapsed
+            } else {
+                bytesPerSecond = nil
+            }
+        } else {
+            bytesPerSecond = nil
+        }
+
+        let clampedExpected = expected > 0 ? expected : nil
+        let fileProgress: Double
+        if let clampedExpected {
+            fileProgress = min(max(Double(written) / Double(clampedExpected), 0), 1)
+        } else {
+            fileProgress = 0
+        }
+
+        let overallProgress = min(
+            progressRange.upperBound,
+            max(
+                progressRange.lowerBound,
+                progressRange.lowerBound + fileProgress * (progressRange.upperBound - progressRange.lowerBound)
+            )
+        )
+        statuses[modelKind] = .downloading(progress: overallProgress)
+
+        guard estimatedModelBytes > 0 else {
+            downloadDetailsByModel[modelKind] = LocalModelDownloadDetail(
+                downloadedBytes: written,
+                totalBytes: clampedExpected,
+                bytesPerSecond: bytesPerSecond,
+                etaSeconds: nil,
+                isResuming: isResuming
+            )
+            return
+        }
+
+        let overallDownloadedBytes = Int64(Double(estimatedModelBytes) * overallProgress)
+        let speed = bytesPerSecond
+        let eta: Double?
+        if let speed, speed > 0 {
+            eta = max(0, Double(estimatedModelBytes - overallDownloadedBytes) / speed)
+        } else {
+            eta = nil
+        }
+        downloadDetailsByModel[modelKind] = LocalModelDownloadDetail(
+            downloadedBytes: overallDownloadedBytes,
+            totalBytes: estimatedModelBytes,
+            bytesPerSecond: speed,
+            etaSeconds: eta,
+            isResuming: isResuming
+        )
+    }
+
+    private func isTransientDownloadError(_ error: Error) -> Bool {
+        if let error = error as? DownloadHTTPError {
+            switch error.statusCode {
+            case 408, 425, 429, 500 ... 599:
+                return true
+            default:
+                return false
+            }
+        }
+
+        let nsError = error as NSError
+        guard nsError.domain == NSURLErrorDomain else {
+            return false
+        }
+        let code = URLError.Code(rawValue: nsError.code)
+        switch code {
+        case .timedOut,
+             .networkConnectionLost,
+             .notConnectedToInternet,
+             .cannotConnectToHost,
+             .cannotFindHost,
+             .dnsLookupFailed,
+             .resourceUnavailable,
+             .internationalRoamingOff,
+             .callIsActive,
+             .dataNotAllowed,
+             .secureConnectionFailed:
+            return true
+        default:
+            return false
+        }
+    }
+
+    // MARK: - Resume Data / Staging
+
+    private func resumeRootDirectory() -> URL {
+        Self.modelsRoot.appending(path: Self.resumeRootRelativePath, directoryHint: .isDirectory)
+    }
+
+    private func stagingRootDirectory() -> URL {
+        Self.modelsRoot.appending(path: Self.stagingRootRelativePath, directoryHint: .isDirectory)
+    }
+
+    private func resumeDataURL(for kind: LocalTranscriptionModelKind, role: String) -> URL {
+        let safeRole = role.replacingOccurrences(of: "/", with: "_")
+        return resumeRootDirectory()
+            .appending(path: kind.rawValue, directoryHint: .isDirectory)
+            .appending(path: "\(safeRole).resume")
+    }
+
+    private func loadResumeData(for kind: LocalTranscriptionModelKind, role: String) -> Data? {
+        let url = resumeDataURL(for: kind, role: role)
+        return try? Data(contentsOf: url)
+    }
+
+    private func saveResumeData(_ data: Data, for kind: LocalTranscriptionModelKind, role: String) {
+        let url = resumeDataURL(for: kind, role: role)
+        Self.writeResumeData(data, to: url)
+    }
+
+    private func clearResumeData(for kind: LocalTranscriptionModelKind, role: String) {
+        let url = resumeDataURL(for: kind, role: role)
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    private func clearAllResumeData(for kind: LocalTranscriptionModelKind) {
+        let dir = resumeRootDirectory().appending(path: kind.rawValue, directoryHint: .isDirectory)
+        try? FileManager.default.removeItem(at: dir)
+    }
+
+    private func makeStagingDirectory(for kind: LocalTranscriptionModelKind) throws -> URL {
+        let dir = stagingRootDirectory()
+            .appending(path: "\(kind.rawValue)-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    private func clearStagingDirectories(for kind: LocalTranscriptionModelKind) {
+        let root = stagingRootDirectory()
+        let fm = FileManager.default
+        guard let contents = try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) else { return }
+        for item in contents where item.lastPathComponent.hasPrefix("\(kind.rawValue)-") {
+            try? fm.removeItem(at: item)
+        }
+    }
+
+    nonisolated private static func writeResumeData(_ data: Data, to url: URL) {
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? data.write(to: url, options: .atomic)
+    }
+
+    private func cleanupProgressTracking(for kind: LocalTranscriptionModelKind) {
+        let prefix = "\(kind.rawValue)::"
+        lastProgressSampleTimeByRole = lastProgressSampleTimeByRole.filter { !$0.key.hasPrefix(prefix) }
+        lastProgressSampleBytesByRole = lastProgressSampleBytesByRole.filter { !$0.key.hasPrefix(prefix) }
     }
 
     // MARK: - Disk Size

@@ -88,7 +88,8 @@ struct ControlBarView: View {
                 // Loading state overlay
                 if viewModel.listeningState == .starting || viewModel.listeningState == .stopping {
                     ProgressView()
-                        .scaleEffect(0.6)
+                        .controlSize(.small)
+                        .frame(width: 14, height: 14)
                         .tint(.secondary)
                 }
             }

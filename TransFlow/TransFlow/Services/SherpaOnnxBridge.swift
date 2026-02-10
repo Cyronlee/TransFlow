@@ -180,6 +180,10 @@ nonisolated final class SherpaOnnxOnlineRecognizerBridge: @unchecked Sendable {
             decoder: toCPointer(decoderPath),
             joiner: toCPointer(joinerPath)
         )
+        let usesBPE = modelingUnit.caseInsensitiveCompare("bpe") == .orderedSame
+        // For bpe modeling units, sherpa-onnx expects bpe_vocab to be a valid file path.
+        // Nemotron int8 packages provide tokens.txt, which is the correct vocab source.
+        let bpeVocabPath = usesBPE ? tokensPath : ""
 
         let modelConfig = SherpaOnnxOnlineModelConfig(
             transducer: transducer,
@@ -194,7 +198,7 @@ nonisolated final class SherpaOnnxOnlineRecognizerBridge: @unchecked Sendable {
             debug: 0,
             model_type: toCPointer(modelType),
             modeling_unit: toCPointer(modelingUnit),
-            bpe_vocab: toCPointer(""),
+            bpe_vocab: toCPointer(bpeVocabPath),
             tokens_buf: nil,
             tokens_buf_size: 0,
             nemo_ctc: SherpaOnnxOnlineNemoCtcModelConfig(model: toCPointer("")),

@@ -554,6 +554,11 @@ struct SettingsView: View {
                     Text(localModelStatusText)
                         .font(.system(size: 11, weight: .regular))
                         .foregroundStyle(localModelStatusColor)
+                    if let progressText = localDownloadProgressText {
+                        Text(progressText)
+                            .font(.system(size: 10, weight: .regular, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    }
                 }
             } icon: {
                 localModelStatusIcon
@@ -601,7 +606,11 @@ struct SettingsView: View {
         case .notDownloaded:
             selectedLocalModelNotDownloadedKey
         case .downloading(let progress):
-            "settings.model.status.downloading \(Int(progress * 100))"
+            if localModelDownloadDetail?.isResuming == true {
+                "settings.model.status.resuming \(Int(progress * 100))"
+            } else {
+                "settings.model.status.downloading \(Int(progress * 100))"
+            }
         case .failed(let message):
             "settings.model.status.failed \(message)"
         }
@@ -635,7 +644,7 @@ struct SettingsView: View {
                 Button {
                     localModelManager.download(for: settings.selectedLocalModel)
                 } label: {
-                    Text("settings.model.download")
+                    Text(localModelManager.hasResumeData(for: settings.selectedLocalModel) ? "settings.model.action.resume" : "settings.model.download")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 10)
@@ -648,10 +657,27 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
 
             case .downloading(let progress):
-                ProgressView(value: progress, total: 1.0)
-                    .progressViewStyle(.linear)
-                    .frame(width: 80)
-                    .tint(.blue)
+                HStack(spacing: 8) {
+                    ProgressView(value: progress, total: 1.0)
+                        .progressViewStyle(.linear)
+                        .frame(width: 80)
+                        .tint(.blue)
+
+                    Button {
+                        localModelManager.cancelDownload(for: settings.selectedLocalModel)
+                    } label: {
+                        Text("settings.model.action.cancel")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(
+                                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                    .fill(Color.orange)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
 
             case .ready:
                 Button {
@@ -698,6 +724,10 @@ struct SettingsView: View {
         localModelManager.status(for: settings.selectedLocalModel)
     }
 
+    private var localModelDownloadDetail: LocalModelDownloadDetail? {
+        localModelManager.downloadDetail(for: settings.selectedLocalModel)
+    }
+
     private var selectedLocalModelNotDownloadedKey: LocalizedStringKey {
         switch settings.selectedLocalModel {
         case .parakeetOfflineInt8:
@@ -716,6 +746,47 @@ struct SettingsView: View {
         } else {
             return String(format: "%.1f GB", Double(bytes) / 1_000_000_000)
         }
+    }
+
+    private var localDownloadProgressText: String? {
+        guard case .downloading = localModelStatus,
+              let detail = localModelDownloadDetail
+        else {
+            return nil
+        }
+
+        let bytesText: String
+        if let totalBytes = detail.totalBytes, totalBytes > 0 {
+            bytesText = "\(formatBytes(detail.downloadedBytes)) / \(formatBytes(totalBytes))"
+        } else {
+            bytesText = formatBytes(detail.downloadedBytes)
+        }
+
+        var segments: [String] = [bytesText]
+        if let speed = detail.bytesPerSecond, speed > 0 {
+            segments.append(String(localized: "settings.model.progress.speed \(formatBytes(Int64(speed)))/s"))
+        }
+        if let eta = detail.etaSeconds, eta.isFinite, eta > 0 {
+            segments.append(String(localized: "settings.model.progress.eta \(formatDuration(eta))"))
+        }
+        return segments.joined(separator: " · ")
+    }
+
+    private func formatBytes(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB, .useGB]
+        formatter.countStyle = .file
+        formatter.includesUnit = true
+        formatter.isAdaptive = true
+        return formatter.string(fromByteCount: bytes)
+    }
+
+    private func formatDuration(_ seconds: Double) -> String {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = seconds >= 3600 ? [.hour, .minute] : [.minute, .second]
+        formatter.unitsStyle = .abbreviated
+        formatter.maximumUnitCount = 2
+        return formatter.string(from: seconds) ?? "--"
     }
 
     // MARK: - Helpers

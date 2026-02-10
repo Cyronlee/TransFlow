@@ -61,6 +61,20 @@ enum LocalModelStatus: Equatable, Sendable {
     }
 }
 
+/// Runtime details for an in-progress model download.
+struct LocalModelDownloadDetail: Equatable, Sendable {
+    /// Bytes persisted so far.
+    let downloadedBytes: Int64
+    /// Total expected bytes if known.
+    let totalBytes: Int64?
+    /// Instantaneous transfer speed in bytes/second if available.
+    let bytesPerSecond: Double?
+    /// Estimated remaining time in seconds if available.
+    let etaSeconds: Double?
+    /// Whether the current task resumed from previous partial data.
+    let isResuming: Bool
+}
+
 /// A completed transcription sentence with timestamp and optional translation.
 struct TranscriptionSentence: Identifiable, Sendable {
     let id = UUID()

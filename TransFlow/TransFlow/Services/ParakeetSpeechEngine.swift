@@ -31,7 +31,7 @@ nonisolated final class ParakeetSpeechEngine: TranscriptionEngine, Sendable {
                 let vad = try SherpaOnnxVADBridge(
                     modelPath: modelDir.appending(path: "silero_vad.onnx").path(percentEncoded: false),
                     threshold: 0.5,
-                    minSilenceDuration: 0.5,
+                    minSilenceDuration: 0.3,
                     minSpeechDuration: 0.25,
                     maxSpeechDuration: 30.0,
                     windowSize: 512,
