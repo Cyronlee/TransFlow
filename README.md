@@ -71,6 +71,20 @@ open TransFlow/TransFlow.xcodeproj
 
 在 Xcode 中选择 TransFlow target，点击运行即可。
 
+### 本地 STT 开发环境（sherpa-onnx）
+
+如果你要开发本地离线 STT（Parakeet/Nemotron）能力，请先构建 sherpa-onnx XCFramework：
+
+```bash
+./scripts/build-sherpa-onnx.sh
+```
+
+如果需要完整清理后重建（源码 + 构建产物）：
+
+```bash
+./scripts/build-sherpa-onnx.sh --clean --reclone
+```
+
 ## 🚀 快速开始
 
 1. 启动 TransFlow，授予麦克风权限
