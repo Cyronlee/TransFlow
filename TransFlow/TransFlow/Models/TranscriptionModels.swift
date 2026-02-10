@@ -3,14 +3,38 @@ import SwiftUI
 /// Which speech-to-text backend to use.
 enum TranscriptionEngineKind: String, CaseIterable, Identifiable, Sendable {
     case apple = "apple"
-    case parakeetLocal = "parakeetLocal"
+    case local = "local"
 
     var id: String { rawValue }
 
     var displayName: LocalizedStringKey {
         switch self {
         case .apple: "settings.engine.apple"
-        case .parakeetLocal: "settings.engine.parakeet"
+        case .local: "settings.engine.local"
+        }
+    }
+}
+
+/// Which local ASR model to use when the local engine is selected.
+enum LocalTranscriptionModelKind: String, CaseIterable, Identifiable, Sendable {
+    case parakeetOfflineInt8 = "parakeetOfflineInt8"
+    case nemotronStreamingInt8 = "nemotronStreamingInt8"
+
+    var id: String { rawValue }
+
+    var displayName: LocalizedStringKey {
+        switch self {
+        case .parakeetOfflineInt8: "settings.local_model.parakeet"
+        case .nemotronStreamingInt8: "settings.local_model.nemotron"
+        }
+    }
+
+    var licenseNoticeKey: LocalizedStringKey {
+        switch self {
+        case .parakeetOfflineInt8:
+            "settings.model.license_notice.parakeet"
+        case .nemotronStreamingInt8:
+            "settings.model.license_notice.nemotron"
         }
     }
 }

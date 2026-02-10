@@ -38,7 +38,7 @@ final class TransFlowViewModel {
     /// Apple Speech model manager for asset checking and downloading.
     let modelManager = SpeechModelManager.shared
 
-    /// Local Parakeet model manager for download/validation.
+    /// Local model manager for download/validation.
     let localModelManager = LocalModelManager.shared
 
     /// JSONL persistence store for the current session.
@@ -85,8 +85,8 @@ final class TransFlowViewModel {
                 await modelManager.ensureModelReady(for: selectedLanguage)
             }
         } else {
-            // Parakeet: check local model status
-            localModelManager.checkStatus()
+            // Local engine: check selected local model status
+            localModelManager.checkStatus(for: AppSettings.shared.selectedLocalModel)
         }
     }
 
@@ -160,15 +160,24 @@ final class TransFlowViewModel {
                     }
                     engine = AppleSpeechEngine(locale: selectedLanguage)
 
-                case .parakeetLocal:
-                    // Ensure Parakeet model is downloaded and ready
-                    localModelManager.checkStatus()
-                    guard localModelManager.status.isReady else {
+                case .local:
+                    let selectedLocalModel = AppSettings.shared.selectedLocalModel
+
+                    // Ensure selected local model is downloaded and ready.
+                    localModelManager.checkStatus(for: selectedLocalModel)
+                    guard localModelManager.status(for: selectedLocalModel).isReady else {
                         showModelNotReadyAlert = true
                         listeningState = .idle
                         return
                     }
-                    engine = ParakeetSpeechEngine(modelDirectory: localModelManager.modelDirectory)
+
+                    let localModelDirectory = localModelManager.modelDirectory(for: selectedLocalModel)
+                    switch selectedLocalModel {
+                    case .parakeetOfflineInt8:
+                        engine = ParakeetSpeechEngine(modelDirectory: localModelDirectory)
+                    case .nemotronStreamingInt8:
+                        engine = NemotronStreamingSpeechEngine(modelDirectory: localModelDirectory)
+                    }
                 }
 
                 self.speechEngine = engine

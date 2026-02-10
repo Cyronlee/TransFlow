@@ -31,7 +31,7 @@ struct SettingsView: View {
                     iconColor: .green
                 ) {
                     enginePickerRow
-                    if settings.selectedEngine == .parakeetLocal {
+                    if settings.selectedEngine == .local {
                         Divider().padding(.leading, 46)
                         localModelContent
                     }
@@ -77,7 +77,7 @@ struct SettingsView: View {
             guard !hasLoadedModels else { return }
             hasLoadedModels = true
             await modelManager.refreshAllStatuses()
-            localModelManager.checkStatus()
+            localModelManager.checkAllStatuses()
         }
         .onChange(of: settings.selectedEngine) { _, newEngine in
             switch newEngine {
@@ -85,9 +85,12 @@ struct SettingsView: View {
                 Task {
                     await modelManager.refreshAllStatuses()
                 }
-            case .parakeetLocal:
-                localModelManager.checkStatus()
+            case .local:
+                localModelManager.checkStatus(for: settings.selectedLocalModel)
             }
+        }
+        .onChange(of: settings.selectedLocalModel) { _, newModel in
+            localModelManager.checkStatus(for: newModel)
         }
     }
 
@@ -501,6 +504,8 @@ struct SettingsView: View {
 
     private var localModelContent: some View {
         VStack(spacing: 0) {
+            localModelPickerRow
+            Divider().padding(.leading, 46)
             // Model status row
             localModelStatusRow
             Divider().padding(.leading, 46)
@@ -512,11 +517,39 @@ struct SettingsView: View {
         }
     }
 
+    private var localModelPickerRow: some View {
+        HStack {
+            Label {
+                Text("settings.local_model")
+                    .font(.system(size: 13, weight: .regular))
+            } icon: {
+                Image(systemName: "square.stack.3d.up")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.mint)
+                    .frame(width: 24)
+            }
+
+            Spacer()
+
+            Picker("", selection: $settings.selectedLocalModel) {
+                ForEach(LocalTranscriptionModelKind.allCases) { model in
+                    Text(model.displayName)
+                        .tag(model)
+                }
+            }
+            .pickerStyle(.menu)
+            .fixedSize()
+            .tint(.secondary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+    }
+
     private var localModelStatusRow: some View {
         HStack(spacing: 8) {
             Label {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("settings.model.parakeet_name")
+                    Text(settings.selectedLocalModel.displayName)
                         .font(.system(size: 13, weight: .regular))
                     Text(localModelStatusText)
                         .font(.system(size: 11, weight: .regular))
@@ -529,7 +562,7 @@ struct SettingsView: View {
 
             Spacer()
 
-            if localModelManager.status.isReady {
+            if localModelStatus.isReady {
                 Text(formattedDiskSize)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .foregroundStyle(.tertiary)
@@ -541,7 +574,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var localModelStatusIcon: some View {
-        switch localModelManager.status {
+        switch localModelStatus {
         case .ready:
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 14, weight: .medium))
@@ -562,11 +595,11 @@ struct SettingsView: View {
     }
 
     private var localModelStatusText: LocalizedStringKey {
-        switch localModelManager.status {
+        switch localModelStatus {
         case .ready:
             "settings.model.status.ready"
         case .notDownloaded:
-            "settings.model.status.not_downloaded"
+            selectedLocalModelNotDownloadedKey
         case .downloading(let progress):
             "settings.model.status.downloading \(Int(progress * 100))"
         case .failed(let message):
@@ -575,7 +608,7 @@ struct SettingsView: View {
     }
 
     private var localModelStatusColor: Color {
-        switch localModelManager.status {
+        switch localModelStatus {
         case .ready: .green
         case .notDownloaded: .secondary
         case .downloading: .blue
@@ -597,10 +630,10 @@ struct SettingsView: View {
 
             Spacer()
 
-            switch localModelManager.status {
+            switch localModelStatus {
             case .notDownloaded, .failed:
                 Button {
-                    localModelManager.download()
+                    localModelManager.download(for: settings.selectedLocalModel)
                 } label: {
                     Text("settings.model.download")
                         .font(.system(size: 11, weight: .medium))
@@ -622,7 +655,7 @@ struct SettingsView: View {
 
             case .ready:
                 Button {
-                    localModelManager.delete()
+                    localModelManager.delete(for: settings.selectedLocalModel)
                 } label: {
                     Text("settings.model.delete")
                         .font(.system(size: 11, weight: .medium))
@@ -645,7 +678,7 @@ struct SettingsView: View {
         HStack {
             Label {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("settings.model.license_notice")
+                    Text(settings.selectedLocalModel.licenseNoticeKey)
                         .font(.system(size: 11, weight: .regular))
                         .foregroundStyle(.tertiary)
                 }
@@ -661,8 +694,21 @@ struct SettingsView: View {
         .padding(.vertical, 8)
     }
 
+    private var localModelStatus: LocalModelStatus {
+        localModelManager.status(for: settings.selectedLocalModel)
+    }
+
+    private var selectedLocalModelNotDownloadedKey: LocalizedStringKey {
+        switch settings.selectedLocalModel {
+        case .parakeetOfflineInt8:
+            "settings.model.status.not_downloaded.parakeet"
+        case .nemotronStreamingInt8:
+            "settings.model.status.not_downloaded.nemotron"
+        }
+    }
+
     private var formattedDiskSize: String {
-        let bytes = localModelManager.diskSizeBytes
+        let bytes = localModelManager.diskSizeBytes(for: settings.selectedLocalModel)
         if bytes < 1_000_000 {
             return "\(bytes / 1_000) KB"
         } else if bytes < 1_000_000_000 {

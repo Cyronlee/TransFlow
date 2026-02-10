@@ -1367,6 +1367,23 @@
         }
       }
     },
+    "settings.engine.local" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local (On-Device)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地（设备端）"
+          }
+        }
+      }
+    },
     "settings.engine.parakeet" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1380,6 +1397,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Parakeet（本地）"
+          }
+        }
+      }
+    },
+    "settings.local_model" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local Model"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地模型"
+          }
+        }
+      }
+    },
+    "settings.local_model.nemotron" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nemotron Streaming 0.6B (int8)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nemotron Streaming 0.6B（int8）"
+          }
+        }
+      }
+    },
+    "settings.local_model.parakeet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parakeet TDT 0.6B v2 (int8)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parakeet TDT 0.6B v2（int8）"
           }
         }
       }
@@ -1402,6 +1470,40 @@
       }
     },
     "settings.model.status.not_downloaded" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not downloaded (~631 MB)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未下载（约 631 MB）"
+          }
+        }
+      }
+    },
+    "settings.model.status.not_downloaded.nemotron" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not downloaded (~663 MB)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未下载（约 663 MB）"
+          }
+        }
+      }
+    },
+    "settings.model.status.not_downloaded.parakeet" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -1521,6 +1623,40 @@
       }
     },
     "settings.model.license_notice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parakeet TDT model by NVIDIA, licensed under CC-BY-4.0. Powered by sherpa-onnx."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Parakeet TDT 模型由 NVIDIA 提供，基于 CC-BY-4.0 许可证。由 sherpa-onnx 驱动。"
+          }
+        }
+      }
+    },
+    "settings.model.license_notice.nemotron" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nemotron Speech model by NVIDIA. Please follow the upstream model license terms."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nemotron Speech 模型由 NVIDIA 提供，请遵循其上游模型许可条款。"
+          }
+        }
+      }
+    },
+    "settings.model.license_notice.parakeet" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {

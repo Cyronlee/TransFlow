@@ -1,156 +1,278 @@
 import Foundation
 
-/// Manages on-demand download, validation, and deletion of the local Parakeet TDT model
-/// and the Silero VAD model used by `ParakeetSpeechEngine`.
+/// Manages on-demand download, validation, and deletion of local ASR models.
 @Observable
 @MainActor
 final class LocalModelManager {
     static let shared = LocalModelManager()
 
+    struct SupplementalDownload: Sendable {
+        let fileName: String
+        let url: URL
+        let minSize: Int64
+    }
+
+    struct LocalModelSpec: Sendable {
+        let kind: LocalTranscriptionModelKind
+        let directoryPath: String
+        let legacyDirectoryPaths: [String]
+        let archiveURL: URL
+        let requiredFiles: [String: Int64]
+        let supplementalDownloads: [SupplementalDownload]
+        let estimatedSizeBytes: Int64
+    }
+
     // MARK: - Observable State
 
-    /// Current status of the local Parakeet model.
-    var status: LocalModelStatus = .notDownloaded
-
-    /// Disk size of the downloaded model in bytes (0 when not downloaded).
-    var diskSizeBytes: Int64 = 0
-
-    // MARK: - Constants
-
-    /// Base directory for all local models.
-    private static let modelsRoot: URL = {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        return appSupport.appending(path: "TransFlow/Models/ParakeetTDT0.6Bv2/int8", directoryHint: .isDirectory)
-    }()
-
-    /// Files that must be present for the model to be considered valid.
-    private static let requiredFiles: [String: Int64] = [
-        "encoder.int8.onnx": 100_000_000,   // ~622 MB
-        "decoder.int8.onnx": 1_000_000,     // ~6.9 MB
-        "joiner.int8.onnx":  500_000,       // ~1.7 MB
-        "tokens.txt":        1_000,          // ~9.2 KB
-    ]
-
-    /// VAD model file.
-    private static let vadFile = "silero_vad.onnx"
-    private static let vadMinSize: Int64 = 500_000 // ~2 MB
-
-    /// Download URLs.
-    private static let modelTarURL = URL(string: "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8.tar.bz2")!
-    private static let vadURL = URL(string: "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx")!
+    private(set) var statuses: [LocalTranscriptionModelKind: LocalModelStatus]
+    private(set) var diskSizeBytesByModel: [LocalTranscriptionModelKind: Int64]
 
     // MARK: - Private
 
-    private var downloadTask: Task<Void, Never>?
+    private var downloadTasks: [LocalTranscriptionModelKind: Task<Void, Never>] = [:]
+
+    // MARK: - Constants
+
+    /// Base directory for all app local models.
+    private static let modelsRoot: URL = {
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        return appSupport.appending(path: "TransFlow/Models", directoryHint: .isDirectory)
+    }()
+
+    private static let specs: [LocalTranscriptionModelKind: LocalModelSpec] = [
+        .parakeetOfflineInt8: LocalModelSpec(
+            kind: .parakeetOfflineInt8,
+            directoryPath: "Local/parakeet-tdt-0.6b-v2-int8",
+            // Backward compatibility with the previous path.
+            legacyDirectoryPaths: ["ParakeetTDT0.6Bv2/int8"],
+            archiveURL: URL(string: "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8.tar.bz2")!,
+            requiredFiles: [
+                "encoder.int8.onnx": 100_000_000,
+                "decoder.int8.onnx": 1_000_000,
+                "joiner.int8.onnx": 500_000,
+                "tokens.txt": 1_000,
+                "silero_vad.onnx": 500_000,
+            ],
+            supplementalDownloads: [
+                SupplementalDownload(
+                    fileName: "silero_vad.onnx",
+                    url: URL(string: "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx")!,
+                    minSize: 500_000
+                ),
+            ],
+            estimatedSizeBytes: 631_000_000
+        ),
+        .nemotronStreamingInt8: LocalModelSpec(
+            kind: .nemotronStreamingInt8,
+            directoryPath: "Local/nemotron-speech-streaming-en-0.6b-int8-2026-01-14",
+            legacyDirectoryPaths: [],
+            archiveURL: URL(string: "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemotron-speech-streaming-en-0.6b-int8-2026-01-14.tar.bz2")!,
+            requiredFiles: [
+                "encoder.int8.onnx": 100_000_000,
+                "decoder.int8.onnx": 1_000_000,
+                "joiner.int8.onnx": 500_000,
+                "tokens.txt": 1_000,
+            ],
+            supplementalDownloads: [],
+            estimatedSizeBytes: 663_000_000
+        ),
+    ]
 
     private init() {
-        checkStatus()
+        statuses = Dictionary(
+            uniqueKeysWithValues: LocalTranscriptionModelKind.allCases.map { ($0, .notDownloaded) }
+        )
+        diskSizeBytesByModel = Dictionary(
+            uniqueKeysWithValues: LocalTranscriptionModelKind.allCases.map { ($0, Int64(0)) }
+        )
+        checkAllStatuses()
     }
 
     // MARK: - Public API
 
-    /// The directory containing the model files (valid only when status is `.ready`).
-    var modelDirectory: URL { Self.modelsRoot }
+    /// Backward-compatible convenience for currently selected local model.
+    var status: LocalModelStatus { status(for: AppSettings.shared.selectedLocalModel) }
+    var diskSizeBytes: Int64 { diskSizeBytes(for: AppSettings.shared.selectedLocalModel) }
+    var modelDirectory: URL { modelDirectory(for: AppSettings.shared.selectedLocalModel) }
+    func checkStatus() { checkStatus(for: AppSettings.shared.selectedLocalModel) }
+    func download() { download(for: AppSettings.shared.selectedLocalModel) }
+    func delete() { delete(for: AppSettings.shared.selectedLocalModel) }
+
+    func status(for kind: LocalTranscriptionModelKind) -> LocalModelStatus {
+        statuses[kind] ?? .notDownloaded
+    }
+
+    func diskSizeBytes(for kind: LocalTranscriptionModelKind) -> Int64 {
+        diskSizeBytesByModel[kind] ?? 0
+    }
+
+    /// Directory to use for loading the specified model.
+    /// If legacy assets are present and valid, they are preferred.
+    func modelDirectory(for kind: LocalTranscriptionModelKind) -> URL {
+        if let readyDir = resolvedReadyDirectory(for: kind) {
+            return readyDir
+        }
+        return primaryDirectory(for: kind)
+    }
+
+    func checkAllStatuses() {
+        for kind in LocalTranscriptionModelKind.allCases {
+            checkStatus(for: kind)
+        }
+    }
 
     /// Check whether all required model files are present and valid.
-    func checkStatus() {
-        let fm = FileManager.default
+    func checkStatus(for kind: LocalTranscriptionModelKind) {
+        if let readyDir = resolvedReadyDirectory(for: kind) {
+            statuses[kind] = .ready
+            diskSizeBytesByModel[kind] = computeDiskSize(at: readyDir)
+            return
+        }
 
-        // Check all required ASR model files
-        for (file, minSize) in Self.requiredFiles {
-            let url = Self.modelsRoot.appending(path: file)
+        // Keep active download state if currently downloading.
+        if case .downloading = statuses[kind] {
+            return
+        }
+        statuses[kind] = .notDownloaded
+        diskSizeBytesByModel[kind] = 0
+    }
+
+    /// Download model archive (+ supplemental files if configured). No-op if already downloading.
+    func download(for kind: LocalTranscriptionModelKind) {
+        guard let spec = Self.specs[kind] else { return }
+        guard downloadTasks[kind] == nil else { return }
+        statuses[kind] = .downloading(progress: 0)
+
+        downloadTasks[kind] = Task {
+            defer { downloadTasks[kind] = nil }
+            do {
+                let fm = FileManager.default
+                let destination = primaryDirectory(for: kind)
+                try fm.createDirectory(at: destination, withIntermediateDirectories: true)
+
+                let archiveUpperBound = spec.supplementalDownloads.isEmpty ? 1.0 : 0.9
+                try await downloadAndExtractArchive(
+                    spec.archiveURL,
+                    to: destination,
+                    modelKind: kind,
+                    progressRange: 0.0 ..< archiveUpperBound
+                )
+
+                if !spec.supplementalDownloads.isEmpty {
+                    for (index, item) in spec.supplementalDownloads.enumerated() {
+                        let start = archiveUpperBound
+                            + (Double(index) / Double(spec.supplementalDownloads.count)) * (1.0 - archiveUpperBound)
+                        let end = archiveUpperBound
+                            + (Double(index + 1) / Double(spec.supplementalDownloads.count)) * (1.0 - archiveUpperBound)
+                        try await downloadSupplemental(
+                            item,
+                            to: destination,
+                            modelKind: kind,
+                            progressRange: start ..< end
+                        )
+                    }
+                }
+
+                checkStatus(for: kind)
+                if !status(for: kind).isReady {
+                    statuses[kind] = .failed(message: String(localized: "settings.model.error.validation_failed"))
+                    ErrorLogger.shared.log("Model validation failed after download: \(kind.rawValue)", source: "LocalModel")
+                }
+            } catch is CancellationError {
+                statuses[kind] = .notDownloaded
+            } catch {
+                let message = error.localizedDescription
+                statuses[kind] = .failed(message: message)
+                ErrorLogger.shared.log("Model download failed (\(kind.rawValue)): \(message)", source: "LocalModel")
+            }
+        }
+    }
+
+    /// Delete downloaded files for the specified model (primary + legacy paths).
+    func delete(for kind: LocalTranscriptionModelKind) {
+        downloadTasks[kind]?.cancel()
+        downloadTasks[kind] = nil
+
+        let fm = FileManager.default
+        for dir in candidateDirectories(for: kind) {
+            try? fm.removeItem(at: dir)
+        }
+        statuses[kind] = .notDownloaded
+        diskSizeBytesByModel[kind] = 0
+    }
+
+    // MARK: - Directory Helpers
+
+    private func primaryDirectory(for kind: LocalTranscriptionModelKind) -> URL {
+        guard let spec = Self.specs[kind] else { return Self.modelsRoot }
+        return Self.modelsRoot.appending(path: spec.directoryPath, directoryHint: .isDirectory)
+    }
+
+    private func candidateDirectories(for kind: LocalTranscriptionModelKind) -> [URL] {
+        guard let spec = Self.specs[kind] else { return [] }
+        var dirs: [URL] = [primaryDirectory(for: kind)]
+        dirs.append(contentsOf: spec.legacyDirectoryPaths.map { relativePath in
+            Self.modelsRoot.appending(path: relativePath, directoryHint: .isDirectory)
+        })
+        return dirs
+    }
+
+    private func resolvedReadyDirectory(for kind: LocalTranscriptionModelKind) -> URL? {
+        guard let spec = Self.specs[kind] else { return nil }
+        for dir in candidateDirectories(for: kind) {
+            if isModelReady(at: dir, spec: spec) {
+                return dir
+            }
+        }
+        return nil
+    }
+
+    private func isModelReady(at directory: URL, spec: LocalModelSpec) -> Bool {
+        let fm = FileManager.default
+        for (file, minSize) in spec.requiredFiles {
+            let url = directory.appending(path: file)
             let filePath = url.path(percentEncoded: false)
             guard fm.fileExists(atPath: filePath),
                   let attrs = try? fm.attributesOfItem(atPath: filePath),
                   let size = attrs[.size] as? Int64,
                   size >= minSize
             else {
-                status = .notDownloaded
-                diskSizeBytes = 0
-                return
+                return false
             }
         }
-
-        // Check VAD model
-        let vadPath = Self.modelsRoot.appending(path: Self.vadFile)
-        let vadFilePath = vadPath.path(percentEncoded: false)
-        guard fm.fileExists(atPath: vadFilePath),
-              let attrs = try? fm.attributesOfItem(atPath: vadFilePath),
-              let size = attrs[.size] as? Int64,
-              size >= Self.vadMinSize
-        else {
-            status = .notDownloaded
-            diskSizeBytes = 0
-            return
-        }
-
-        status = .ready
-        diskSizeBytes = computeDiskSize()
-    }
-
-    /// Download the model (ASR tarball + VAD). No-op if already downloading.
-    func download() {
-        guard !status.isDownloading else { return }
-        status = .downloading(progress: 0)
-
-        downloadTask = Task {
-            do {
-                let fm = FileManager.default
-                try fm.createDirectory(at: Self.modelsRoot, withIntermediateDirectories: true)
-
-                // --- Download and extract the ASR model tarball (95% of progress) ---
-                try await downloadAndExtractTarball(progressRange: 0.0 ..< 0.95)
-
-                // --- Download the VAD model (5% of progress) ---
-                try await downloadVAD(progressRange: 0.95 ..< 1.0)
-
-                // Validate
-                checkStatus()
-                if !status.isReady {
-                    status = .failed(message: String(localized: "settings.model.error.validation_failed"))
-                    ErrorLogger.shared.log("Model validation failed after download", source: "LocalModel")
-                }
-            } catch is CancellationError {
-                status = .notDownloaded
-            } catch {
-                let message = error.localizedDescription
-                status = .failed(message: message)
-                ErrorLogger.shared.log("Model download failed: \(message)", source: "LocalModel")
-            }
-        }
-    }
-
-    /// Delete all downloaded model files.
-    func delete() {
-        downloadTask?.cancel()
-        downloadTask = nil
-
-        let fm = FileManager.default
-        try? fm.removeItem(at: Self.modelsRoot)
-        status = .notDownloaded
-        diskSizeBytes = 0
+        return true
     }
 
     // MARK: - Download Helpers
 
-    private func downloadAndExtractTarball(progressRange: Range<Double>) async throws {
+    private func downloadAndExtractArchive(
+        _ archiveURL: URL,
+        to destination: URL,
+        modelKind: LocalTranscriptionModelKind,
+        progressRange: Range<Double>
+    ) async throws {
         let (tempURL, _) = try await downloadFile(
-            from: Self.modelTarURL,
+            from: archiveURL,
+            modelKind: modelKind,
             progressRange: progressRange
         )
         defer { try? FileManager.default.removeItem(at: tempURL) }
-
-        // Extract tar.bz2 using /usr/bin/tar
-        try await extractTarball(tempURL, to: Self.modelsRoot)
+        try await extractTarball(tempURL, to: destination)
     }
 
-    private func downloadVAD(progressRange: Range<Double>) async throws {
+    private func downloadSupplemental(
+        _ item: SupplementalDownload,
+        to destination: URL,
+        modelKind: LocalTranscriptionModelKind,
+        progressRange: Range<Double>
+    ) async throws {
         let (tempURL, _) = try await downloadFile(
-            from: Self.vadURL,
+            from: item.url,
+            modelKind: modelKind,
             progressRange: progressRange
         )
 
-        let dest = Self.modelsRoot.appending(path: Self.vadFile)
+        let dest = destination.appending(path: item.fileName)
         let fm = FileManager.default
         if fm.fileExists(atPath: dest.path(percentEncoded: false)) {
             try fm.removeItem(at: dest)
@@ -162,6 +284,7 @@ final class LocalModelManager {
     /// Returns the temporary file URL and the HTTP response.
     private func downloadFile(
         from url: URL,
+        modelKind: LocalTranscriptionModelKind,
         progressRange: Range<Double>
     ) async throws -> (URL, URLResponse) {
         let config = URLSessionConfiguration.default
@@ -201,7 +324,7 @@ final class LocalModelManager {
                     let fileFraction = Double(received) / Double(expectedLength)
                     let overall = progressRange.lowerBound
                         + fileFraction * (progressRange.upperBound - progressRange.lowerBound)
-                    status = .downloading(progress: min(overall, progressRange.upperBound))
+                    statuses[modelKind] = .downloading(progress: min(overall, progressRange.upperBound))
                 }
             }
         }
@@ -214,7 +337,7 @@ final class LocalModelManager {
         return (tempURL, response)
     }
 
-    /// Extract a `.tar.bz2` archive, moving the inner files into the destination directory.
+    /// Extract a `.tar.bz2` archive, moving inner files into the destination directory.
     private func extractTarball(_ tarURL: URL, to destination: URL) async throws {
         // Extract to a temporary directory first
         let tempDir = FileManager.default.temporaryDirectory
@@ -236,12 +359,10 @@ final class LocalModelManager {
             )
         }
 
-        // The tarball extracts into a subdirectory (e.g., sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8/).
-        // Move the contained files into the destination.
+        // The tarball extracts into a subdirectory; move the contained files into destination.
         let fm = FileManager.default
         let contents = try fm.contentsOfDirectory(at: tempDir, includingPropertiesForKeys: nil)
 
-        // Find the extracted subdirectory
         let extractedDir = contents.first { url in
             var isDir: ObjCBool = false
             return fm.fileExists(atPath: url.path(percentEncoded: false), isDirectory: &isDir) && isDir.boolValue
@@ -259,10 +380,10 @@ final class LocalModelManager {
 
     // MARK: - Disk Size
 
-    private func computeDiskSize() -> Int64 {
+    private func computeDiskSize(at directory: URL) -> Int64 {
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(
-            at: Self.modelsRoot,
+            at: directory,
             includingPropertiesForKeys: [.fileSizeKey],
             options: [.skipsHiddenFiles]
         ) else { return 0 }

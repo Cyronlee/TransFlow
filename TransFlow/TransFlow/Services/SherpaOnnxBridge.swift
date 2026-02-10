@@ -15,12 +15,18 @@ nonisolated private func toCPointer(_ s: String) -> UnsafePointer<CChar>! {
 
 enum SherpaOnnxBridgeError: LocalizedError {
     case recognizerCreationFailed
+    case onlineRecognizerCreationFailed
+    case onlineStreamCreationFailed
     case vadCreationFailed
 
     var errorDescription: String? {
         switch self {
         case .recognizerCreationFailed:
             "Failed to create SherpaOnnxOfflineRecognizer"
+        case .onlineRecognizerCreationFailed:
+            "Failed to create SherpaOnnxOnlineRecognizer"
+        case .onlineStreamCreationFailed:
+            "Failed to create SherpaOnnxOnlineStream"
         case .vadCreationFailed:
             "Failed to create SherpaOnnxVoiceActivityDetector"
         }
@@ -150,6 +156,129 @@ nonisolated final class SherpaOnnxOfflineRecognizerBridge: @unchecked Sendable {
 
         guard let cstr = resultPtr.pointee.text else { return "" }
         return String(cString: cstr).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+// MARK: - Online Recognizer
+
+/// Swift wrapper for `SherpaOnnxOnlineRecognizer` (streaming ASR).
+nonisolated final class SherpaOnnxOnlineRecognizerBridge: @unchecked Sendable {
+    private let recognizer: OpaquePointer
+    private let stream: OpaquePointer
+
+    init(
+        encoderPath: String,
+        decoderPath: String,
+        joinerPath: String,
+        tokensPath: String,
+        numThreads: Int = 2,
+        modelType: String = "nemo_transducer",
+        modelingUnit: String = "bpe"
+    ) throws {
+        let transducer = SherpaOnnxOnlineTransducerModelConfig(
+            encoder: toCPointer(encoderPath),
+            decoder: toCPointer(decoderPath),
+            joiner: toCPointer(joinerPath)
+        )
+
+        let modelConfig = SherpaOnnxOnlineModelConfig(
+            transducer: transducer,
+            paraformer: SherpaOnnxOnlineParaformerModelConfig(
+                encoder: toCPointer(""),
+                decoder: toCPointer("")
+            ),
+            zipformer2_ctc: SherpaOnnxOnlineZipformer2CtcModelConfig(model: toCPointer("")),
+            tokens: toCPointer(tokensPath),
+            num_threads: Int32(numThreads),
+            provider: toCPointer("cpu"),
+            debug: 0,
+            model_type: toCPointer(modelType),
+            modeling_unit: toCPointer(modelingUnit),
+            bpe_vocab: toCPointer(""),
+            tokens_buf: nil,
+            tokens_buf_size: 0,
+            nemo_ctc: SherpaOnnxOnlineNemoCtcModelConfig(model: toCPointer("")),
+            t_one_ctc: SherpaOnnxOnlineToneCtcModelConfig(model: toCPointer(""))
+        )
+
+        let featConfig = SherpaOnnxFeatureConfig(sample_rate: 16000, feature_dim: 80)
+        let ctcFstConfig = SherpaOnnxOnlineCtcFstDecoderConfig(
+            graph: toCPointer(""),
+            max_active: 3000
+        )
+        let hr = SherpaOnnxHomophoneReplacerConfig(
+            dict_dir: toCPointer(""),
+            lexicon: toCPointer(""),
+            rule_fsts: toCPointer("")
+        )
+
+        var config = SherpaOnnxOnlineRecognizerConfig(
+            feat_config: featConfig,
+            model_config: modelConfig,
+            decoding_method: toCPointer("greedy_search"),
+            max_active_paths: 4,
+            enable_endpoint: 1,
+            rule1_min_trailing_silence: 2.4,
+            rule2_min_trailing_silence: 1.2,
+            rule3_min_utterance_length: 20,
+            hotwords_file: toCPointer(""),
+            hotwords_score: 1.5,
+            ctc_fst_decoder_config: ctcFstConfig,
+            rule_fsts: toCPointer(""),
+            rule_fars: toCPointer(""),
+            blank_penalty: 0,
+            hotwords_buf: nil,
+            hotwords_buf_size: 0,
+            hr: hr
+        )
+
+        guard let recognizer = SherpaOnnxCreateOnlineRecognizer(&config) else {
+            throw SherpaOnnxBridgeError.onlineRecognizerCreationFailed
+        }
+        guard let stream = SherpaOnnxCreateOnlineStream(recognizer) else {
+            SherpaOnnxDestroyOnlineRecognizer(recognizer)
+            throw SherpaOnnxBridgeError.onlineStreamCreationFailed
+        }
+
+        self.recognizer = recognizer
+        self.stream = stream
+    }
+
+    deinit {
+        SherpaOnnxDestroyOnlineStream(stream)
+        SherpaOnnxDestroyOnlineRecognizer(recognizer)
+    }
+
+    func acceptWaveform(samples: [Float]) {
+        SherpaOnnxOnlineStreamAcceptWaveform(stream, 16000, samples, Int32(samples.count))
+    }
+
+    func decodeWhileReady() {
+        while SherpaOnnxIsOnlineStreamReady(recognizer, stream) == 1 {
+            SherpaOnnxDecodeOnlineStream(recognizer, stream)
+        }
+    }
+
+    func currentText() -> String {
+        guard let result = SherpaOnnxGetOnlineStreamResult(recognizer, stream) else {
+            return ""
+        }
+        defer { SherpaOnnxDestroyOnlineRecognizerResult(result) }
+
+        guard let cstr = result.pointee.text else { return "" }
+        return String(cString: cstr).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func inputFinished() {
+        SherpaOnnxOnlineStreamInputFinished(stream)
+    }
+
+    func isEndpoint() -> Bool {
+        SherpaOnnxOnlineStreamIsEndpoint(recognizer, stream) != 0
+    }
+
+    func reset() {
+        SherpaOnnxOnlineStreamReset(recognizer, stream)
     }
 }
 
