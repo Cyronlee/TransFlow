@@ -11,6 +11,22 @@ nonisolated private func toCPointer(_ s: String) -> UnsafePointer<CChar>! {
     (s as NSString).utf8String.map { UnsafePointer($0) }
 }
 
+// MARK: - Errors
+
+enum SherpaOnnxBridgeError: LocalizedError {
+    case recognizerCreationFailed
+    case vadCreationFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .recognizerCreationFailed:
+            "Failed to create SherpaOnnxOfflineRecognizer"
+        case .vadCreationFailed:
+            "Failed to create SherpaOnnxVoiceActivityDetector"
+        }
+    }
+}
+
 // MARK: - Offline Recognizer
 
 /// Swift wrapper for `SherpaOnnxOfflineRecognizer` (non-streaming ASR).
@@ -31,7 +47,7 @@ nonisolated final class SherpaOnnxOfflineRecognizerBridge: @unchecked Sendable {
         joinerPath: String,
         tokensPath: String,
         numThreads: Int = 2
-    ) {
+    ) throws {
         let transducer = SherpaOnnxOfflineTransducerModelConfig(
             encoder: toCPointer(encoderPath),
             decoder: toCPointer(decoderPath),
@@ -104,7 +120,7 @@ nonisolated final class SherpaOnnxOfflineRecognizerBridge: @unchecked Sendable {
         )
 
         guard let ptr = SherpaOnnxCreateOfflineRecognizer(&config) else {
-            fatalError("Failed to create SherpaOnnxOfflineRecognizer")
+            throw SherpaOnnxBridgeError.recognizerCreationFailed
         }
         self.recognizer = ptr
     }
@@ -161,7 +177,7 @@ nonisolated final class SherpaOnnxVADBridge: @unchecked Sendable {
         maxSpeechDuration: Float = 30.0,
         windowSize: Int = 512,
         bufferSizeInSeconds: Float = 60.0
-    ) {
+    ) throws {
         let sileroConfig = SherpaOnnxSileroVadModelConfig(
             model: toCPointer(modelPath),
             threshold: threshold,
@@ -190,7 +206,7 @@ nonisolated final class SherpaOnnxVADBridge: @unchecked Sendable {
         )
 
         guard let ptr = SherpaOnnxCreateVoiceActivityDetector(&vadConfig, bufferSizeInSeconds) else {
-            fatalError("Failed to create SherpaOnnxVoiceActivityDetector")
+            throw SherpaOnnxBridgeError.vadCreationFailed
         }
         self.vad = ptr
     }

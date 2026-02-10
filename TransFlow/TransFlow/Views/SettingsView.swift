@@ -77,6 +77,17 @@ struct SettingsView: View {
             guard !hasLoadedModels else { return }
             hasLoadedModels = true
             await modelManager.refreshAllStatuses()
+            localModelManager.checkStatus()
+        }
+        .onChange(of: settings.selectedEngine) { _, newEngine in
+            switch newEngine {
+            case .apple:
+                Task {
+                    await modelManager.refreshAllStatuses()
+                }
+            case .parakeetLocal:
+                localModelManager.checkStatus()
+            }
         }
     }
 
