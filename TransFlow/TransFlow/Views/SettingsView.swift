@@ -92,6 +92,9 @@ struct SettingsView: View {
         .onChange(of: settings.selectedLocalModel) { _, newModel in
             localModelManager.checkStatus(for: newModel)
         }
+        .onAppear {
+            updateChecker.checkOnceOnLaunch()
+        }
     }
 
     // MARK: - Section Builder
@@ -293,7 +296,58 @@ struct SettingsView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
 
-            default:
+            case .checking:
+                HStack {
+                    Label {
+                        Text("settings.version")
+                            .font(.system(size: 13, weight: .regular))
+                    } icon: {
+                        Image(systemName: "number")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 24)
+                    }
+
+                    Spacer()
+
+                    HStack(spacing: 6) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text(appVersionString)
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+
+            case .failed:
+                HStack {
+                    Label {
+                        Text("settings.version")
+                            .font(.system(size: 13, weight: .regular))
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.yellow)
+                            .frame(width: 24)
+                    }
+
+                    Spacer()
+
+                    HStack(spacing: 6) {
+                        Text("settings.check_failed")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        Text(appVersionString)
+                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+
+            case .idle:
                 HStack {
                     Label {
                         Text("settings.version")
@@ -792,9 +846,7 @@ struct SettingsView: View {
     // MARK: - Helpers
 
     private var appVersionString: String {
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
-        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
-        return "\(version) (\(build))"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.2.0"
     }
 
     // MARK: - Open Logs Row

@@ -1,0 +1,7 @@
+──────────────────────────────────────
+TransFlow Error Log
+Version: 1.0.0 (1)
+macOS: 版本26.2（版号25C56）
+Launch: 2026-02-09 06:32:25 +0000
+──────────────────────────────────────
+[2026-02-09 14:32:27.558] [UpdateChecker] Update check failed: 未能完成操作。（TransFlow.(unknown context at $104a02aac).UpdateError错误0。）  (TransFlow/UpdateChecker.swift:68)
