@@ -22,7 +22,13 @@ Package TransFlow.app into a DMG installer image.
 # Open DMG after creation
 ./scripts/build-dmg.sh --open
 
-# With code signing
+# With ad-hoc signing (auto-detect or fallback to ad-hoc)
+./scripts/build-dmg.sh --sign
+
+# With specific certificate signing
+./scripts/build-dmg.sh --sign "Developer ID Application: Your Name"
+
+# Legacy codesign parameter (still supported)
 ./scripts/build-dmg.sh --codesign "Developer ID Application: Your Name"
 ```
 
