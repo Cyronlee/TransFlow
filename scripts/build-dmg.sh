@@ -33,7 +33,8 @@ DMG_APP_DROP_LINK_Y=290
 
 # 签名配置
 CODESIGN_IDENTITY=""        # 代码签名身份（留空=不签名, "-"=ad-hoc, 其他=证书名）
-SIGN_ENTITLEMENTS=""        # entitlements plist 路径（可选）
+SIGN_ENTITLEMENTS=""        # entitlements plist 路径（可选，留空=自动检测项目 entitlements）
+DEFAULT_ENTITLEMENTS="${PROJECT_DIR}/TransFlow/TransFlow/TransFlow.entitlements"
 
 # Build 配置
 CONFIGURATION="Release"
@@ -145,9 +146,12 @@ detect_codesign_identity() {
     
     info "自动检测可用的代码签名身份..."
     
+    local identities
+    identities=$(security find-identity -v -p codesigning 2>/dev/null || true)
+    
     # 优先查找 Developer ID Application（需要付费会员）
     local dev_id
-    dev_id=$(security find-identity -v -p codesigning 2>/dev/null | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)".*/\1/')
+    dev_id=$(echo "$identities" | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)".*/\1/' || true)
     if [ -n "$dev_id" ]; then
         CODESIGN_IDENTITY="$dev_id"
         info "检测到 Developer ID: ${CODESIGN_IDENTITY}"
@@ -156,7 +160,7 @@ detect_codesign_identity() {
     
     # 其次查找 Apple Development（免费开发者证书）
     local apple_dev
-    apple_dev=$(security find-identity -v -p codesigning 2>/dev/null | grep "Apple Development" | head -1 | sed 's/.*"\(.*\)".*/\1/')
+    apple_dev=$(echo "$identities" | grep "Apple Development" | head -1 | sed 's/.*"\(.*\)".*/\1/' || true)
     if [ -n "$apple_dev" ]; then
         CODESIGN_IDENTITY="$apple_dev"
         info "检测到 Apple Development: ${CODESIGN_IDENTITY}"
@@ -165,7 +169,7 @@ detect_codesign_identity() {
     
     # 查找任意可用的代码签名身份
     local any_id
-    any_id=$(security find-identity -v -p codesigning 2>/dev/null | grep -v "^$" | grep -v "valid identities found" | head -1 | sed 's/.*"\(.*\)".*/\1/')
+    any_id=$(echo "$identities" | grep -v "^$" | grep -v "valid identities found" | head -1 | sed 's/.*"\(.*\)".*/\1/' || true)
     if [ -n "$any_id" ]; then
         CODESIGN_IDENTITY="$any_id"
         info "检测到签名身份: ${CODESIGN_IDENTITY}"
@@ -202,14 +206,21 @@ codesign_app() {
         )
     fi
     
-    # 添加 entitlements（如果指定）
-    if [ -n "${SIGN_ENTITLEMENTS}" ]; then
-        if [ -f "${SIGN_ENTITLEMENTS}" ]; then
-            SIGN_ARGS+=(--entitlements "${SIGN_ENTITLEMENTS}")
-            info "使用 entitlements: ${SIGN_ENTITLEMENTS}"
+    # 添加 entitlements（如果指定或自动检测到项目默认 entitlements）
+    local ent_file="${SIGN_ENTITLEMENTS}"
+    if [ -z "${ent_file}" ] && [ -f "${DEFAULT_ENTITLEMENTS}" ]; then
+        ent_file="${DEFAULT_ENTITLEMENTS}"
+        info "自动检测到项目 entitlements: ${ent_file}"
+    fi
+    if [ -n "${ent_file}" ]; then
+        if [ -f "${ent_file}" ]; then
+            SIGN_ARGS+=(--entitlements "${ent_file}")
+            info "使用 entitlements: ${ent_file}"
         else
-            warn "entitlements 文件不存在: ${SIGN_ENTITLEMENTS}，跳过"
+            warn "entitlements 文件不存在: ${ent_file}，跳过"
         fi
+    else
+        warn "未找到 entitlements 文件，Hardened Runtime 可能会阻止麦克风等权限"
     fi
     
     # 1. 签名 Frameworks 中的每个 dylib / framework

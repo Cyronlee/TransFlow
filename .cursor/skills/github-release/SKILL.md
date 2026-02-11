@@ -95,9 +95,10 @@ git push origin main --tags
 ### Step 5: Build DMG locally
 
 ```bash
-./scripts/build-dmg.sh --clean
+./scripts/build-dmg.sh --clean --sign
 ```
 
+- `--sign` will auto-detect signing identity and auto-load project entitlements (microphone, etc.)
 - Set `block_until_ms` to 300000 (5 min) — build + DMG takes time
 - Output: `build/TransFlow-X.Y.Z.dmg`
 - Verify the DMG file exists and is non-empty before proceeding
