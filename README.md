@@ -116,6 +116,12 @@ open TransFlow/TransFlow.xcodeproj
 
 如果你觉得 TransFlow 有用，请给我们一个 Star ⭐，这是对我们最大的支持！
 
+## 💬 交流群
+
+<div align="center">
+  <img src="public/wx.jpg" alt="交流群" width="320">
+</div>
+
 ---
 
 <div align="center">
