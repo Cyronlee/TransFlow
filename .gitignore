@@ -45,6 +45,11 @@ Icon?
 build/
 *.dmg
 
+# sherpa-onnx build artifacts
+vendor/sherpa-onnx-src/
+vendor/sherpa-onnx-build/
+vendor/sherpa-onnx.xcframework/
+
 # Misc
 *.swp
 *.swo

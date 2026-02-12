@@ -71,6 +71,20 @@ open TransFlow/TransFlow.xcodeproj
 
 Select the TransFlow target in Xcode and click Run.
 
+### Local STT Developer Setup (sherpa-onnx)
+
+If you are developing the local on-device STT path (Parakeet/Nemotron), build the sherpa-onnx XCFramework first:
+
+```bash
+./scripts/build-sherpa-onnx.sh
+```
+
+For a full clean rebuild of source + artifacts:
+
+```bash
+./scripts/build-sherpa-onnx.sh --clean --reclone
+```
+
 ## 🚀 Quick Start
 
 1. Launch TransFlow and grant microphone permission

@@ -7,6 +7,7 @@ struct SettingsView: View {
     @State private var settings = AppSettings.shared
     @State private var updateChecker = UpdateChecker.shared
     @State private var modelManager = SpeechModelManager.shared
+    @State private var localModelManager = LocalModelManager.shared
     @State private var hasLoadedModels = false
 
     var body: some View {
@@ -23,13 +24,28 @@ struct SettingsView: View {
                     appearanceRow
                 }
 
-                // ── Speech Models Section ──
+                // ── Speech Recognition Engine Section ──
                 settingsSection(
-                    header: "settings.speech_models",
-                    icon: "waveform.badge.mic",
-                    iconColor: .indigo
+                    header: "settings.engine",
+                    icon: "brain",
+                    iconColor: .green
                 ) {
-                    speechModelsContent
+                    enginePickerRow
+                    if settings.selectedEngine == .local {
+                        Divider().padding(.leading, 46)
+                        localModelContent
+                    }
+                }
+
+                // ── Speech Models Section (Apple engine only) ──
+                if settings.selectedEngine == .apple {
+                    settingsSection(
+                        header: "settings.speech_models",
+                        icon: "waveform.badge.mic",
+                        iconColor: .indigo
+                    ) {
+                        speechModelsContent
+                    }
                 }
 
                 // ── Feedback Section ──
@@ -61,6 +77,20 @@ struct SettingsView: View {
             guard !hasLoadedModels else { return }
             hasLoadedModels = true
             await modelManager.refreshAllStatuses()
+            localModelManager.checkAllStatuses()
+        }
+        .onChange(of: settings.selectedEngine) { _, newEngine in
+            switch newEngine {
+            case .apple:
+                Task {
+                    await modelManager.refreshAllStatuses()
+                }
+            case .local:
+                localModelManager.checkStatus(for: settings.selectedLocalModel)
+            }
+        }
+        .onChange(of: settings.selectedLocalModel) { _, newModel in
+            localModelManager.checkStatus(for: newModel)
         }
         .onAppear {
             updateChecker.checkOnceOnLaunch()
@@ -492,6 +522,325 @@ struct SettingsView: View {
         case .unsupported, .checking:
             EmptyView()
         }
+    }
+
+    // MARK: - Engine Picker
+
+    private var enginePickerRow: some View {
+        HStack {
+            Label {
+                Text("settings.engine")
+                    .font(.system(size: 13, weight: .regular))
+            } icon: {
+                Image(systemName: "waveform")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.green)
+                    .frame(width: 24)
+            }
+
+            Spacer()
+
+            Picker("", selection: $settings.selectedEngine) {
+                ForEach(TranscriptionEngineKind.allCases) { engine in
+                    Text(engine.displayName)
+                        .tag(engine)
+                }
+            }
+            .pickerStyle(.menu)
+            .fixedSize()
+            .tint(.secondary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    // MARK: - Local Model Content
+
+    private var localModelContent: some View {
+        VStack(spacing: 0) {
+            localModelPickerRow
+            Divider().padding(.leading, 46)
+            // Model status row
+            localModelStatusRow
+            Divider().padding(.leading, 46)
+            // Action row (download / delete)
+            localModelActionRow
+            Divider().padding(.leading, 46)
+            // License notice
+            localModelLicenseRow
+        }
+    }
+
+    private var localModelPickerRow: some View {
+        HStack {
+            Label {
+                Text("settings.local_model")
+                    .font(.system(size: 13, weight: .regular))
+            } icon: {
+                Image(systemName: "square.stack.3d.up")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.mint)
+                    .frame(width: 24)
+            }
+
+            Spacer()
+
+            Picker("", selection: $settings.selectedLocalModel) {
+                ForEach(LocalTranscriptionModelKind.allCases) { model in
+                    Text(model.displayName)
+                        .tag(model)
+                }
+            }
+            .pickerStyle(.menu)
+            .fixedSize()
+            .tint(.secondary)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+    }
+
+    private var localModelStatusRow: some View {
+        HStack(spacing: 8) {
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(settings.selectedLocalModel.displayName)
+                        .font(.system(size: 13, weight: .regular))
+                    Text(localModelStatusText)
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(localModelStatusColor)
+                    if let progressText = localDownloadProgressText {
+                        Text(progressText)
+                            .font(.system(size: 10, weight: .regular, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            } icon: {
+                localModelStatusIcon
+                    .frame(width: 24)
+            }
+
+            Spacer()
+
+            if localModelStatus.isReady {
+                Text(formattedDiskSize)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private var localModelStatusIcon: some View {
+        switch localModelStatus {
+        case .ready:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.green)
+        case .notDownloaded:
+            Image(systemName: "arrow.down.circle")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.secondary)
+        case .downloading:
+            ProgressView()
+                .controlSize(.small)
+                .frame(width: 14, height: 14)
+        case .failed:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.orange)
+        }
+    }
+
+    private var localModelStatusText: LocalizedStringKey {
+        switch localModelStatus {
+        case .ready:
+            "settings.model.status.ready"
+        case .notDownloaded:
+            selectedLocalModelNotDownloadedKey
+        case .downloading(let progress):
+            if localModelDownloadDetail?.isResuming == true {
+                "settings.model.status.resuming \(Int(progress * 100))"
+            } else {
+                "settings.model.status.downloading \(Int(progress * 100))"
+            }
+        case .failed(let message):
+            "settings.model.status.failed \(message)"
+        }
+    }
+
+    private var localModelStatusColor: Color {
+        switch localModelStatus {
+        case .ready: .green
+        case .notDownloaded: .secondary
+        case .downloading: .blue
+        case .failed: .orange
+        }
+    }
+
+    private var localModelActionRow: some View {
+        HStack {
+            Label {
+                Text("settings.model.manage")
+                    .font(.system(size: 13, weight: .regular))
+            } icon: {
+                Image(systemName: "internaldrive")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24)
+            }
+
+            Spacer()
+
+            switch localModelStatus {
+            case .notDownloaded, .failed:
+                Button {
+                    localModelManager.download(for: settings.selectedLocalModel)
+                } label: {
+                    Text(localModelManager.hasResumeData(for: settings.selectedLocalModel) ? "settings.model.action.resume" : "settings.model.download")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .fill(Color.accentColor)
+                        )
+                }
+                .buttonStyle(.plain)
+
+            case .downloading(let progress):
+                HStack(spacing: 8) {
+                    ProgressView(value: progress, total: 1.0)
+                        .progressViewStyle(.linear)
+                        .frame(width: 80)
+                        .tint(.blue)
+
+                    Button {
+                        localModelManager.cancelDownload(for: settings.selectedLocalModel)
+                    } label: {
+                        Text("settings.model.action.cancel")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(
+                                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                    .fill(Color.orange)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+
+            case .ready:
+                Button {
+                    localModelManager.delete(for: settings.selectedLocalModel)
+                } label: {
+                    Text("settings.model.delete")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .fill(Color.red)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+    }
+
+    private var localModelLicenseRow: some View {
+        HStack {
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(settings.selectedLocalModel.licenseNoticeKey)
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(.tertiary)
+                }
+            } icon: {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 24)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+    }
+
+    private var localModelStatus: LocalModelStatus {
+        localModelManager.status(for: settings.selectedLocalModel)
+    }
+
+    private var localModelDownloadDetail: LocalModelDownloadDetail? {
+        localModelManager.downloadDetail(for: settings.selectedLocalModel)
+    }
+
+    private var selectedLocalModelNotDownloadedKey: LocalizedStringKey {
+        switch settings.selectedLocalModel {
+        case .parakeetOfflineInt8:
+            "settings.model.status.not_downloaded.parakeet"
+        case .nemotronStreamingInt8:
+            "settings.model.status.not_downloaded.nemotron"
+        }
+    }
+
+    private var formattedDiskSize: String {
+        let bytes = localModelManager.diskSizeBytes(for: settings.selectedLocalModel)
+        if bytes < 1_000_000 {
+            return "\(bytes / 1_000) KB"
+        } else if bytes < 1_000_000_000 {
+            return String(format: "%.0f MB", Double(bytes) / 1_000_000)
+        } else {
+            return String(format: "%.1f GB", Double(bytes) / 1_000_000_000)
+        }
+    }
+
+    private var localDownloadProgressText: String? {
+        guard case .downloading = localModelStatus,
+              let detail = localModelDownloadDetail
+        else {
+            return nil
+        }
+
+        let bytesText: String
+        if let totalBytes = detail.totalBytes, totalBytes > 0 {
+            bytesText = "\(formatBytes(detail.downloadedBytes)) / \(formatBytes(totalBytes))"
+        } else {
+            bytesText = formatBytes(detail.downloadedBytes)
+        }
+
+        var segments: [String] = [bytesText]
+        if let speed = detail.bytesPerSecond, speed > 0 {
+            segments.append(String(localized: "settings.model.progress.speed \(formatBytes(Int64(speed)))/s"))
+        }
+        if let eta = detail.etaSeconds, eta.isFinite, eta > 0 {
+            segments.append(String(localized: "settings.model.progress.eta \(formatDuration(eta))"))
+        }
+        return segments.joined(separator: " · ")
+    }
+
+    private func formatBytes(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB, .useGB]
+        formatter.countStyle = .file
+        formatter.includesUnit = true
+        formatter.isAdaptive = true
+        return formatter.string(fromByteCount: bytes)
+    }
+
+    private func formatDuration(_ seconds: Double) -> String {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = seconds >= 3600 ? [.hour, .minute] : [.minute, .second]
+        formatter.unitsStyle = .abbreviated
+        formatter.maximumUnitCount = 2
+        return formatter.string(from: seconds) ?? "--"
     }
 
     // MARK: - Helpers

@@ -1,9 +1,15 @@
 import Speech
 @preconcurrency import AVFoundation
 
-/// Uses macOS 26.0 SpeechAnalyzer + SpeechTranscriber for real-time transcription.
+/// Common interface for all speech-to-text backends.
+/// Each engine accepts 16kHz mono Float32 audio and emits transcription events.
+protocol TranscriptionEngine: Sendable {
+    func processStream(_ audioStream: AsyncStream<AudioChunk>) -> AsyncStream<TranscriptionEvent>
+}
+
+/// Apple Speech backend using macOS 26.0 SpeechAnalyzer + SpeechTranscriber.
 /// Accepts an AudioChunk stream (16kHz mono Float32), outputs TranscriptionEvent stream.
-final class SpeechEngine: Sendable {
+final class AppleSpeechEngine: TranscriptionEngine, Sendable {
     private let locale: Locale
 
     init(locale: Locale) {

@@ -73,6 +73,20 @@ final class AppSettings {
         }
     }
 
+    /// The selected speech recognition engine.
+    var selectedEngine: TranscriptionEngineKind {
+        didSet {
+            UserDefaults.standard.set(selectedEngine.rawValue, forKey: "selectedEngine")
+        }
+    }
+
+    /// Selected local ASR model when `selectedEngine == .local`.
+    var selectedLocalModel: LocalTranscriptionModelKind {
+        didSet {
+            UserDefaults.standard.set(selectedLocalModel.rawValue, forKey: "selectedLocalModel")
+        }
+    }
+
     /// The resolved locale used for SwiftUI environment.
     var locale: Locale
 
@@ -83,6 +97,19 @@ final class AppSettings {
 
         let storedAppearance = UserDefaults.standard.string(forKey: "appAppearance") ?? "system"
         self.appAppearance = AppAppearance(rawValue: storedAppearance) ?? .system
+
+        let storedEngine = UserDefaults.standard.string(forKey: "selectedEngine") ?? "apple"
+        if storedEngine == "parakeetLocal" {
+            // Backward compatibility for previous engine key.
+            self.selectedEngine = .local
+        } else {
+            self.selectedEngine = TranscriptionEngineKind(rawValue: storedEngine) ?? .apple
+        }
+
+        let storedLocalModel = UserDefaults.standard.string(forKey: "selectedLocalModel")
+            ?? LocalTranscriptionModelKind.parakeetOfflineInt8.rawValue
+        self.selectedLocalModel = LocalTranscriptionModelKind(rawValue: storedLocalModel)
+            ?? .parakeetOfflineInt8
 
         if let identifier = language.localeIdentifier {
             self.locale = Locale(identifier: identifier)

@@ -11,6 +11,7 @@ struct MainView: View {
     @State private var selectedDestination: SidebarDestination = .transcription
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
     @State private var viewModel = TransFlowViewModel()
+    @State private var settings = AppSettings.shared
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -21,6 +22,11 @@ struct MainView: View {
         .navigationSplitViewStyle(.balanced)
         .onReceive(NotificationCenter.default.publisher(for: .navigateToSettings)) { _ in
             selectedDestination = .settings
+        }
+        .onChange(of: settings.selectedEngine) { _, _ in
+            Task {
+                await viewModel.loadSupportedLanguages()
+            }
         }
     }
 

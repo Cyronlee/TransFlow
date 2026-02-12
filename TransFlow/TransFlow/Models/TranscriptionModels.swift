@@ -1,4 +1,79 @@
-import Foundation
+import SwiftUI
+
+/// Which speech-to-text backend to use.
+enum TranscriptionEngineKind: String, CaseIterable, Identifiable, Sendable {
+    case apple = "apple"
+    case local = "local"
+
+    var id: String { rawValue }
+
+    var displayName: LocalizedStringKey {
+        switch self {
+        case .apple: "settings.engine.apple"
+        case .local: "settings.engine.local"
+        }
+    }
+}
+
+/// Which local ASR model to use when the local engine is selected.
+enum LocalTranscriptionModelKind: String, CaseIterable, Identifiable, Sendable {
+    case parakeetOfflineInt8 = "parakeetOfflineInt8"
+    case nemotronStreamingInt8 = "nemotronStreamingInt8"
+
+    var id: String { rawValue }
+
+    var displayName: LocalizedStringKey {
+        switch self {
+        case .parakeetOfflineInt8: "settings.local_model.parakeet"
+        case .nemotronStreamingInt8: "settings.local_model.nemotron"
+        }
+    }
+
+    var licenseNoticeKey: LocalizedStringKey {
+        switch self {
+        case .parakeetOfflineInt8:
+            "settings.model.license_notice.parakeet"
+        case .nemotronStreamingInt8:
+            "settings.model.license_notice.nemotron"
+        }
+    }
+}
+
+/// Status of the locally-downloaded Parakeet model.
+enum LocalModelStatus: Equatable, Sendable {
+    /// Model files have not been downloaded yet.
+    case notDownloaded
+    /// Download is in progress.
+    case downloading(progress: Double)
+    /// Model is validated and ready to use.
+    case ready
+    /// Download or validation failed.
+    case failed(message: String)
+
+    var isReady: Bool {
+        if case .ready = self { return true }
+        return false
+    }
+
+    var isDownloading: Bool {
+        if case .downloading = self { return true }
+        return false
+    }
+}
+
+/// Runtime details for an in-progress model download.
+struct LocalModelDownloadDetail: Equatable, Sendable {
+    /// Bytes persisted so far.
+    let downloadedBytes: Int64
+    /// Total expected bytes if known.
+    let totalBytes: Int64?
+    /// Instantaneous transfer speed in bytes/second if available.
+    let bytesPerSecond: Double?
+    /// Estimated remaining time in seconds if available.
+    let etaSeconds: Double?
+    /// Whether the current task resumed from previous partial data.
+    let isResuming: Bool
+}
 
 /// A completed transcription sentence with timestamp and optional translation.
 struct TranscriptionSentence: Identifiable, Sendable {
