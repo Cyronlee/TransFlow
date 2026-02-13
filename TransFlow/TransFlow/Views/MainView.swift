@@ -3,14 +3,16 @@ import SwiftUI
 /// Root view with NavigationSplitView providing a collapsible sidebar.
 /// The sidebar starts collapsed (detail only) for a clean initial appearance.
 ///
-/// The ViewModel is owned here so it survives sidebar navigation
-/// (switching between Transcription / History / Settings).
-/// This prevents a new session file from being created every time the user
-/// navigates back to the transcription page.
+/// The shared ViewModel is injected from app root so it survives sidebar navigation
+/// (switching between Transcription / History / Settings) and can be reused by
+/// other UI surfaces like the floating preview window.
 struct MainView: View {
+    @Bindable var viewModel: TransFlowViewModel
+    @Bindable var floatingPreviewManager: FloatingPreviewPanelManager
+    @Bindable var settings: AppSettings
+
     @State private var selectedDestination: SidebarDestination = .transcription
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
-    @State private var viewModel = TransFlowViewModel()
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -28,7 +30,11 @@ struct MainView: View {
     private var detailView: some View {
         switch selectedDestination {
         case .transcription:
-            ContentView(viewModel: viewModel)
+            ContentView(
+                viewModel: viewModel,
+                floatingPreviewManager: floatingPreviewManager,
+                settings: settings
+            )
         case .history:
             HistoryView()
         case .settings:
