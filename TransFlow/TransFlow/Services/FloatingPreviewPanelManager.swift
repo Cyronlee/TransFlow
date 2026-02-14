@@ -72,13 +72,19 @@ final class FloatingPreviewPanelManager: NSObject, NSWindowDelegate {
         panel.title = String(localized: "floating_preview.title")
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
+        panel.titlebarSeparatorStyle = .none
         panel.isMovableByWindowBackground = true
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.animationBehavior = .utilityWindow
         panel.minSize = NSSize(width: 320, height: 150)
         panel.delegate = self
         panel.setFrameAutosaveName("TransFlow.FloatingPreviewPanel")
 
+        panel.standardWindowButton(.closeButton)?.isHidden = true
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         panel.standardWindowButton(.zoomButton)?.isHidden = true
 
