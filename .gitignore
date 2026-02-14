@@ -50,3 +50,4 @@ build/
 *.swo
 *~
 TransFlow/TransFlow.xcodeproj/project.xcworkspace/xcuserdata
+.cursor/plans/
