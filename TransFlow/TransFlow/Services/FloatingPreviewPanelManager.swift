@@ -63,7 +63,7 @@ final class FloatingPreviewPanelManager: NSObject, NSWindowDelegate {
         ]
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 210),
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 120),
             styleMask: styleMask,
             backing: .buffered,
             defer: true
@@ -80,7 +80,7 @@ final class FloatingPreviewPanelManager: NSObject, NSWindowDelegate {
         panel.backgroundColor = .clear
         panel.hasShadow = true
         panel.animationBehavior = .utilityWindow
-        panel.minSize = NSSize(width: 320, height: 150)
+        panel.minSize = NSSize(width: 360, height: 100)
         panel.delegate = self
         panel.setFrameAutosaveName("TransFlow.FloatingPreviewPanel")
 
@@ -121,13 +121,16 @@ final class FloatingPreviewPanelManager: NSObject, NSWindowDelegate {
         panel.level = isPinned ? .floating : .normal
         panel.isFloatingPanel = isPinned
 
-        var behavior: NSWindow.CollectionBehavior = [
-            .moveToActiveSpace,
-            .fullScreenAuxiliary,
-        ]
         if isPinned {
-            behavior.insert(.canJoinAllSpaces)
+            panel.collectionBehavior = [
+                .canJoinAllSpaces,
+                .fullScreenAuxiliary,
+            ]
+        } else {
+            panel.collectionBehavior = [
+                .moveToActiveSpace,
+                .fullScreenAuxiliary,
+            ]
         }
-        panel.collectionBehavior = behavior
     }
 }
