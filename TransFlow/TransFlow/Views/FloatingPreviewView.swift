@@ -100,17 +100,15 @@ struct FloatingPreviewView: View {
     private func captionLineView(_ line: CaptionLine) -> some View {
         if line.isPartial {
             Text(line.text)
-                .font(line.kind == .source ? .system(size: 15, weight: .regular) : .system(size: 14, weight: .regular))
+                .font(line.kind == .source ? .system(size: 15, weight: .regular) : .system(size: 12, weight: .regular))
                 .foregroundStyle(lineForegroundStyle(for: line.kind))
                 .italic()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, line.kind == .translation ? 6 : 0)
         } else {
             Text(line.text)
-                .font(line.kind == .source ? .system(size: 15, weight: .regular) : .system(size: 14, weight: .regular))
+                .font(line.kind == .source ? .system(size: 15, weight: .regular) : .system(size: 12, weight: .regular))
                 .foregroundStyle(lineForegroundStyle(for: line.kind))
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, line.kind == .translation ? 6 : 0)
         }
     }
 
