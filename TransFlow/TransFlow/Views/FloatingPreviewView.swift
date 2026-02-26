@@ -7,8 +7,7 @@ struct FloatingPreviewView: View {
     @State private var isHovering = false
 
     private let captionBottomAnchor = "floating-caption-bottom"
-    private let maxFinalizedSentenceCount = 10
-    private let captionViewportHeight: CGFloat = 46
+    private let maxFinalizedSentenceCount = 4
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -17,16 +16,7 @@ struct FloatingPreviewView: View {
         }
         .padding(12)
         .frame(minWidth: 340, idealWidth: 390, minHeight: 96, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.ultraThinMaterial)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.white.opacity(0.22), lineWidth: 0.8)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .shadow(color: .black.opacity(0.2), radius: 16, x: 0, y: 10)
+        .glassEffect(.regular, in: .rect(cornerRadius: 14))
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.16)) {
@@ -38,18 +28,18 @@ struct FloatingPreviewView: View {
     private var captionCard: some View {
         ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 3) {
                     ForEach(captionLines) { line in
                         captionLineView(line)
                     }
 
                     Color.clear
-                        .frame(height: 1)
+                        .frame(height: 8)
                         .id(captionBottomAnchor)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, minHeight: captionViewportHeight, maxHeight: captionViewportHeight)
+            .frame(maxWidth: .infinity, minHeight: 80, maxHeight: .infinity)
             .padding(.trailing, 56)
             .onAppear {
                 scrollToBottom(with: proxy, animated: false)
@@ -60,14 +50,6 @@ struct FloatingPreviewView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(.regularMaterial)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color.white.opacity(0.18), lineWidth: 0.6)
-        )
     }
 
     private var controlOverlay: some View {
@@ -92,16 +74,9 @@ struct FloatingPreviewView: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(panelManager.isPinned ? Color.accentColor : Color.secondary)
                 .frame(width: 24, height: 24)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(.quaternary.opacity(panelManager.isPinned ? 0.38 : 0.25))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(Color.white.opacity(0.16), lineWidth: 0.6)
-                )
         }
         .buttonStyle(.plain)
+        .glassEffect(.regular, in: .circle)
         .help(Text(panelManager.isPinned ? "floating_preview.unpin" : "floating_preview.pin"))
         .accessibilityLabel(Text(panelManager.isPinned ? "floating_preview.unpin" : "floating_preview.pin"))
     }
@@ -114,16 +89,9 @@ struct FloatingPreviewView: View {
                 .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(.secondary)
                 .frame(width: 24, height: 24)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(.quaternary.opacity(0.3))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(Color.white.opacity(0.16), lineWidth: 0.6)
-                )
         }
         .buttonStyle(.plain)
+        .glassEffect(.regular, in: .circle)
         .help(Text("floating_preview.close"))
         .accessibilityLabel(Text("floating_preview.close"))
     }
@@ -134,17 +102,15 @@ struct FloatingPreviewView: View {
             Text(line.text)
                 .font(line.kind == .source ? .system(size: 15, weight: .regular) : .system(size: 14, weight: .regular))
                 .foregroundStyle(lineForegroundStyle(for: line.kind))
-                .lineLimit(1)
-                .truncationMode(.head)
                 .italic()
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, line.kind == .translation ? 6 : 0)
         } else {
             Text(line.text)
                 .font(line.kind == .source ? .system(size: 15, weight: .regular) : .system(size: 14, weight: .regular))
                 .foregroundStyle(lineForegroundStyle(for: line.kind))
-                .lineLimit(1)
-                .truncationMode(.head)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, line.kind == .translation ? 6 : 0)
         }
     }
 

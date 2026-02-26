@@ -63,7 +63,7 @@ final class FloatingPreviewPanelManager: NSObject, NSWindowDelegate {
         ]
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 120),
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 200),
             styleMask: styleMask,
             backing: .buffered,
             defer: true
@@ -80,7 +80,7 @@ final class FloatingPreviewPanelManager: NSObject, NSWindowDelegate {
         panel.backgroundColor = .clear
         panel.hasShadow = true
         panel.animationBehavior = .utilityWindow
-        panel.minSize = NSSize(width: 360, height: 100)
+        panel.minSize = NSSize(width: 360, height: 160)
         panel.delegate = self
         panel.setFrameAutosaveName("TransFlow.FloatingPreviewPanel")
 
