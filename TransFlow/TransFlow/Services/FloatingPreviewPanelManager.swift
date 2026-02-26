@@ -28,8 +28,7 @@ final class FloatingPreviewPanelManager: NSObject, NSWindowDelegate {
         )
         applyPinState()
 
-        panel?.makeKeyAndOrderFront(nil)
-        panel?.orderFrontRegardless()
+        panel?.orderFront(nil)
     }
 
     /// Closes the panel (same behavior as clicking the red close button).
@@ -56,10 +55,8 @@ final class FloatingPreviewPanelManager: NSObject, NSWindowDelegate {
 
     private func createPanel() {
         let styleMask: NSWindow.StyleMask = [
-            .titled,
-            .closable,
             .resizable,
-            .fullSizeContentView,
+            .nonactivatingPanel,
         ]
 
         let panel = NSPanel(
@@ -69,10 +66,6 @@ final class FloatingPreviewPanelManager: NSObject, NSWindowDelegate {
             defer: true
         )
 
-        panel.title = String(localized: "floating_preview.title")
-        panel.titleVisibility = .hidden
-        panel.titlebarAppearsTransparent = true
-        panel.titlebarSeparatorStyle = .none
         panel.isMovableByWindowBackground = true
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
@@ -83,10 +76,6 @@ final class FloatingPreviewPanelManager: NSObject, NSWindowDelegate {
         panel.minSize = NSSize(width: 360, height: 160)
         panel.delegate = self
         panel.setFrameAutosaveName("TransFlow.FloatingPreviewPanel")
-
-        panel.standardWindowButton(.closeButton)?.isHidden = true
-        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        panel.standardWindowButton(.zoomButton)?.isHidden = true
 
         self.panel = panel
     }
