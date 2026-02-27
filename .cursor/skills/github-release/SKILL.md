@@ -95,9 +95,12 @@ git push origin main --tags
 ### Step 5: Build DMG locally
 
 ```bash
-./scripts/build-dmg.sh --clean
+./scripts/build-dmg.sh --clean --sign
 ```
 
+- `--sign` auto-detects signing identity and auto-loads project entitlements (microphone, etc.)
+- The build disables Xcode signing; the script handles signing separately for consistency
+- Signing identity: `5JNN9A6Z6X`, Team ID: `8RQVLSP2SC`
 - Set `block_until_ms` to 300000 (5 min) — build + DMG takes time
 - Output: `build/TransFlow-X.Y.Z.dmg`
 - Verify the DMG file exists and is non-empty before proceeding

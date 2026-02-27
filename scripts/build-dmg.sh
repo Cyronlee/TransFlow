@@ -31,6 +31,11 @@ DMG_APP_ICON_Y=290
 DMG_APP_DROP_LINK_X=555
 DMG_APP_DROP_LINK_Y=290
 
+# 签名配置
+CODESIGN_IDENTITY=""        # 代码签名身份（留空=不签名, "-"=ad-hoc, 其他=证书名）
+SIGN_ENTITLEMENTS=""        # entitlements plist 路径（可选，留空=自动检测项目 entitlements）
+DEFAULT_ENTITLEMENTS="${PROJECT_DIR}/TransFlow/TransFlow/TransFlow.entitlements"
+
 # Build 配置
 CONFIGURATION="Release"
 ARCH="$(uname -m)"  # arm64 或 x86_64
@@ -53,7 +58,7 @@ error()   { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 SKIP_BUILD=false
 CLEAN_BUILD=false
 OPEN_DMG=false
-CODESIGN_IDENTITY=""
+SIGN_APP=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -69,19 +74,46 @@ while [[ $# -gt 0 ]]; do
             OPEN_DMG=true
             shift
             ;;
+        --sign)
+            SIGN_APP=true
+            # 如果下一个参数不是 --开头的选项，则视为签名身份
+            if [[ $# -gt 1 ]] && [[ "$2" != --* ]]; then
+                CODESIGN_IDENTITY="$2"
+                shift 2
+            else
+                shift
+            fi
+            ;;
         --codesign)
+            # 兼容旧参数：--codesign ID（仅签名 DMG）
+            SIGN_APP=true
             CODESIGN_IDENTITY="$2"
+            shift 2
+            ;;
+        --entitlements)
+            SIGN_ENTITLEMENTS="$2"
             shift 2
             ;;
         --help|-h)
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
-            echo "  --skip-build    跳过 Xcode build，直接打包已有的 .app"
-            echo "  --clean         clean build（先清理再构建）"
-            echo "  --open          打包完成后自动打开 DMG"
-            echo "  --codesign ID   使用指定身份对 DMG 进行代码签名"
-            echo "  -h, --help      显示帮助"
+            echo "  --skip-build         跳过 Xcode build，直接打包已有的 .app"
+            echo "  --clean              clean build（先清理再构建）"
+            echo "  --open               打包完成后自动打开 DMG"
+            echo "  --sign [IDENTITY]    对 .app 和 DMG 进行代码签名"
+            echo "                         不指定 IDENTITY: 自动检测或使用 ad-hoc 签名"
+            echo "                         指定 IDENTITY: 使用指定的签名身份"
+            echo "  --codesign ID        (旧参数兼容) 同 --sign ID"
+            echo "  --entitlements FILE  指定 entitlements plist（配合 --sign 使用）"
+            echo "  -h, --help           显示帮助"
+            echo ""
+            echo "签名说明:"
+            echo "  Ad-hoc 签名（无证书）:  ./scripts/build-dmg.sh --sign"
+            echo "  指定证书签名:           ./scripts/build-dmg.sh --sign \"Developer ID Application: Name\""
+            echo ""
+            echo "  注意: 没有付费 Apple Developer Program 会员的 ad-hoc 签名，"
+            echo "  用户首次打开时仍需 右键→打开 来绕过 Gatekeeper 验证。"
             exit 0
             ;;
         *)
@@ -103,6 +135,124 @@ if ! command -v xcodebuild &> /dev/null; then
 fi
 
 success "依赖检查通过"
+
+# ── 签名身份检测 ──────────────────────────────────────────────────────────────
+
+detect_codesign_identity() {
+    # 如果已经手动指定了身份，直接返回
+    if [ -n "${CODESIGN_IDENTITY}" ]; then
+        return
+    fi
+    
+    info "自动检测可用的代码签名身份..."
+    
+    local identities
+    identities=$(security find-identity -v -p codesigning 2>/dev/null || true)
+    
+    # 优先查找 Developer ID Application（需要付费会员）
+    local dev_id
+    dev_id=$(echo "$identities" | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)".*/\1/' || true)
+    if [ -n "$dev_id" ]; then
+        CODESIGN_IDENTITY="$dev_id"
+        info "检测到 Developer ID: ${CODESIGN_IDENTITY}"
+        return
+    fi
+    
+    # 其次查找 Apple Development（免费开发者证书）
+    local apple_dev
+    apple_dev=$(echo "$identities" | grep "Apple Development" | head -1 | sed 's/.*"\(.*\)".*/\1/' || true)
+    if [ -n "$apple_dev" ]; then
+        CODESIGN_IDENTITY="$apple_dev"
+        info "检测到 Apple Development: ${CODESIGN_IDENTITY}"
+        return
+    fi
+    
+    # 查找任意可用的代码签名身份
+    local any_id
+    any_id=$(echo "$identities" | grep -v "^$" | grep -v "valid identities found" | head -1 | sed 's/.*"\(.*\)".*/\1/' || true)
+    if [ -n "$any_id" ]; then
+        CODESIGN_IDENTITY="$any_id"
+        info "检测到签名身份: ${CODESIGN_IDENTITY}"
+        return
+    fi
+    
+    # 没有找到任何证书，使用 ad-hoc 签名
+    warn "未检测到代码签名证书，将使用 ad-hoc 签名（-）"
+    warn "Ad-hoc 签名可保证应用完整性，但用户仍需右键→打开来绕过 Gatekeeper"
+    CODESIGN_IDENTITY="-"
+}
+
+codesign_app() {
+    local app_path="$1"
+    
+    info "正在对 ${APP_NAME}.app 进行代码签名..."
+    info "签名身份: ${CODESIGN_IDENTITY}"
+    
+    # Resolve entitlements file
+    local ent_file="${SIGN_ENTITLEMENTS}"
+    if [ -z "${ent_file}" ] && [ -f "${DEFAULT_ENTITLEMENTS}" ]; then
+        ent_file="${DEFAULT_ENTITLEMENTS}"
+        info "自动检测到项目 entitlements: ${ent_file}"
+    fi
+    if [ -n "${ent_file}" ]; then
+        if [ -f "${ent_file}" ]; then
+            info "使用 entitlements: ${ent_file}"
+        else
+            warn "entitlements 文件不存在: ${ent_file}，跳过"
+            ent_file=""
+        fi
+    else
+        warn "未找到 entitlements 文件，Hardened Runtime 可能会阻止麦克风等权限"
+    fi
+    
+    # Build codesign args for inner components (no entitlements, no --deep)
+    local INNER_SIGN_ARGS=(--force --timestamp --options runtime --sign "${CODESIGN_IDENTITY}")
+    # Build codesign args for the main bundle (with entitlements)
+    local BUNDLE_SIGN_ARGS=(--force --timestamp --options runtime --sign "${CODESIGN_IDENTITY}")
+    
+    if [ "${CODESIGN_IDENTITY}" = "-" ]; then
+        INNER_SIGN_ARGS=(--force --sign "-")
+        BUNDLE_SIGN_ARGS=(--force --sign "-")
+    fi
+    
+    if [ -n "${ent_file}" ] && [ "${CODESIGN_IDENTITY}" != "-" ]; then
+        BUNDLE_SIGN_ARGS+=(--entitlements "${ent_file}")
+    fi
+    
+    # 1. Sign embedded frameworks (inside-out order)
+    if [ -d "${app_path}/Contents/Frameworks" ]; then
+        info "签名内嵌 Frameworks..."
+        find "${app_path}/Contents/Frameworks" \( -name "*.dylib" -o -name "*.framework" \) -print0 2>/dev/null | while IFS= read -r -d '' fw; do
+            codesign "${INNER_SIGN_ARGS[@]}" "$fw" 2>&1 || warn "签名失败: $(basename "$fw")"
+        done
+    fi
+    
+    # 2. Sign helper executables
+    if [ -d "${app_path}/Contents/MacOS" ]; then
+        find "${app_path}/Contents/MacOS" -type f -perm +111 ! -name "${APP_NAME}" -print0 2>/dev/null | while IFS= read -r -d '' helper; do
+            info "签名辅助工具: $(basename "$helper")"
+            codesign "${INNER_SIGN_ARGS[@]}" "$helper" 2>&1 || warn "签名失败: $(basename "$helper")"
+        done
+    fi
+    
+    # 3. Sign the main .app bundle (with entitlements)
+    info "签名 ${APP_NAME}.app..."
+    codesign "${BUNDLE_SIGN_ARGS[@]}" "${app_path}" 2>&1
+    
+    # 4. Verify signature with --strict
+    info "验证签名..."
+    if codesign --verify --strict --verbose=2 "${app_path}" 2>&1; then
+        success "代码签名验证通过"
+    else
+        warn "代码签名验证未通过，应用可能无法正常运行"
+    fi
+    
+    # 5. Show signing details
+    echo ""
+    info "签名详情:"
+    codesign --display --verbose=2 "${app_path}" 2>&1 | head -10
+    echo ""
+}
 
 # ── 清理 ─────────────────────────────────────────────────────────────────────
 
@@ -135,6 +285,8 @@ else
 
     info "构建 ${APP_NAME} (${CONFIGURATION}, ${ARCH})..."
     
+    # Build without signing — the script handles signing separately to ensure
+    # consistent identity and entitlements regardless of Xcode project settings.
     xcodebuild build \
         -project "${XCODE_PROJECT}" \
         -scheme "${SCHEME}" \
@@ -142,7 +294,10 @@ else
         -arch "${ARCH}" \
         -derivedDataPath "${BUILD_DIR}/DerivedData" \
         -quiet \
-        ONLY_ACTIVE_ARCH=NO
+        ONLY_ACTIVE_ARCH=NO \
+        CODE_SIGN_IDENTITY="-" \
+        CODE_SIGNING_REQUIRED=NO \
+        CODE_SIGNING_ALLOWED=NO
     
     # 复制 .app 到 DMG 准备目录
     BUILT_APP="${BUILD_DIR}/DerivedData/Build/Products/${CONFIGURATION}/${APP_NAME}.app"
@@ -157,6 +312,13 @@ fi
 # 验证 .app 存在
 if [ ! -d "${APP_PATH}" ]; then
     error "${APP_NAME}.app 不存在: ${APP_PATH}"
+fi
+
+# ── 代码签名 ─────────────────────────────────────────────────────────────────
+
+if [ "$SIGN_APP" = true ]; then
+    detect_codesign_identity
+    codesign_app "${APP_PATH}"
 fi
 
 # ── 获取版本号 ───────────────────────────────────────────────────────────────
@@ -191,10 +353,11 @@ else
     warn "未找到背景图: ${DMG_BACKGROUND}，将使用默认背景"
 fi
 
-# 添加代码签名（如果指定）
-if [ -n "${CODESIGN_IDENTITY}" ]; then
+# 添加 DMG 代码签名（如果启用签名且非 ad-hoc）
+# 注意: create-dmg 的 --codesign 不支持 ad-hoc("-") 签名
+if [ "$SIGN_APP" = true ] && [ -n "${CODESIGN_IDENTITY}" ] && [ "${CODESIGN_IDENTITY}" != "-" ]; then
     CREATE_DMG_ARGS+=(--codesign "${CODESIGN_IDENTITY}")
-    info "代码签名: ${CODESIGN_IDENTITY}"
+    info "DMG 代码签名: ${CODESIGN_IDENTITY}"
 fi
 
 # 添加 volume icon（如果存在 .icns）
@@ -245,12 +408,24 @@ fi
 # ── 结果 ─────────────────────────────────────────────────────────────────────
 
 DMG_SIZE=$(du -h "${DMG_FINAL}" | cut -f1 | xargs)
+
+# 签名状态
+SIGN_STATUS="未签名"
+if [ "$SIGN_APP" = true ]; then
+    if [ "${CODESIGN_IDENTITY}" = "-" ]; then
+        SIGN_STATUS="Ad-hoc 签名"
+    else
+        SIGN_STATUS="已签名 (${CODESIGN_IDENTITY})"
+    fi
+fi
+
 echo ""
 echo "============================================"
 echo -e "  ${GREEN}${APP_NAME} DMG 打包完成${NC}"
 echo "  版本:   ${APP_VERSION} (${APP_BUILD})"
 echo "  架构:   ${ARCH}"
 echo "  大小:   ${DMG_SIZE}"
+echo "  签名:   ${SIGN_STATUS}"
 echo "  路径:   ${DMG_FINAL}"
 echo "============================================"
 echo ""
