@@ -5,6 +5,8 @@ import AppKit
 /// Apple-inspired clean layout with a prominent circular record button.
 struct ControlBarView: View {
     @Bindable var viewModel: TransFlowViewModel
+    @Bindable var floatingPreviewManager: FloatingPreviewPanelManager
+    @Bindable var settings: AppSettings
 
     var body: some View {
         HStack(spacing: 0) {
@@ -151,6 +153,9 @@ struct ControlBarView: View {
 
             // Translation controls
             translationControls
+
+            // Floating preview button
+            popUpPreviewButton
 
             // Export button
             exportButton
@@ -363,6 +368,28 @@ struct ControlBarView: View {
     }
 
     // MARK: - Export Button
+
+    private var popUpPreviewButton: some View {
+        Button {
+            floatingPreviewManager.show(
+                viewModel: viewModel,
+                locale: settings.locale,
+                colorScheme: settings.appAppearance.colorScheme
+            )
+        } label: {
+            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.primary)
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(.quaternary.opacity(0.5))
+                )
+        }
+        .buttonStyle(.plain)
+        .help(Text("control.pop_up_preview"))
+        .accessibilityLabel(Text("control.pop_up_preview"))
+    }
 
     private var exportButton: some View {
         Button {
