@@ -8,6 +8,9 @@ final class FloatingPreviewPanelManager: NSObject, NSWindowDelegate {
     /// Whether the panel should stay above other app windows.
     var isPinned: Bool = false
 
+    /// Whether the floating preview panel is currently visible.
+    var isVisible: Bool = false
+
     private var panel: NSPanel?
     private var hostingController: NSHostingController<AnyView>?
 
@@ -29,11 +32,26 @@ final class FloatingPreviewPanelManager: NSObject, NSWindowDelegate {
         applyPinState()
 
         panel?.orderFront(nil)
+        isVisible = true
     }
 
     /// Closes the panel (same behavior as clicking the red close button).
     func close() {
         panel?.close()
+        isVisible = false
+    }
+
+    /// Toggles the floating preview panel open/closed.
+    func toggle(
+        viewModel: TransFlowViewModel,
+        locale: Locale,
+        colorScheme: ColorScheme?
+    ) {
+        if isVisible {
+            close()
+        } else {
+            show(viewModel: viewModel, locale: locale, colorScheme: colorScheme)
+        }
     }
 
     /// Toggles the pin state and reapplies z-order behavior.
@@ -47,9 +65,9 @@ final class FloatingPreviewPanelManager: NSObject, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
-        // Keep runtime-only pin behavior simple: closing the panel unpins it.
         if panel == nil || notification.object as? NSPanel === panel {
             isPinned = false
+            isVisible = false
         }
     }
 

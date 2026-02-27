@@ -4,5 +4,7 @@
 <dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>TransFlow needs microphone access to transcribe speech in real-time.</string>
+	<key>NSAccessibilityUsageDescription</key>
+	<string>TransFlow needs accessibility access to support global hotkeys when other apps are in focus.</string>
 </dict>
 </plist>

@@ -1,4 +1,5 @@
 import SwiftUI
+import Carbon.HIToolbox
 
 /// Supported app languages for the UI.
 enum AppLanguage: String, CaseIterable, Identifiable {
@@ -76,6 +77,8 @@ final class AppSettings {
     /// The resolved locale used for SwiftUI environment.
     var locale: Locale
 
+    private var isInitialized = false
+
     private init() {
         let storedLang = UserDefaults.standard.string(forKey: "appLanguage") ?? "system"
         let language = AppLanguage(rawValue: storedLang) ?? .system
@@ -89,16 +92,162 @@ final class AppSettings {
         } else {
             self.locale = Locale.current
         }
+
+        self.hotkeyToggleTranscription = .empty
+        self.hotkeyToggleTranslation = .empty
+        self.hotkeyToggleFloatingPreview = .empty
+        self.hotkeyToggleMainWindow = .empty
+
+        self.hotkeyToggleTranscription = loadHotkey(forKey: "hotkey.toggleTranscription")
+        self.hotkeyToggleTranslation = loadHotkey(forKey: "hotkey.toggleTranslation")
+        self.hotkeyToggleFloatingPreview = loadHotkey(forKey: "hotkey.toggleFloatingPreview")
+        self.hotkeyToggleMainWindow = loadHotkey(forKey: "hotkey.toggleMainWindow")
+
+        self.isInitialized = true
+    }
+
+    // MARK: - Hotkey Bindings
+
+    var hotkeyToggleTranscription: HotkeyBinding {
+        didSet {
+            saveHotkey(hotkeyToggleTranscription, forKey: "hotkey.toggleTranscription")
+            if isInitialized { GlobalHotkeyManager.shared.refreshCachedBindings() }
+        }
+    }
+    var hotkeyToggleTranslation: HotkeyBinding {
+        didSet {
+            saveHotkey(hotkeyToggleTranslation, forKey: "hotkey.toggleTranslation")
+            if isInitialized { GlobalHotkeyManager.shared.refreshCachedBindings() }
+        }
+    }
+    var hotkeyToggleFloatingPreview: HotkeyBinding {
+        didSet {
+            saveHotkey(hotkeyToggleFloatingPreview, forKey: "hotkey.toggleFloatingPreview")
+            if isInitialized { GlobalHotkeyManager.shared.refreshCachedBindings() }
+        }
+    }
+    var hotkeyToggleMainWindow: HotkeyBinding {
+        didSet {
+            saveHotkey(hotkeyToggleMainWindow, forKey: "hotkey.toggleMainWindow")
+            if isInitialized { GlobalHotkeyManager.shared.refreshCachedBindings() }
+        }
     }
 
     private func applyLanguage() {
         if let identifier = appLanguage.localeIdentifier {
             locale = Locale(identifier: identifier)
-            // Override Apple's language array so Bundle lookups pick the right .lproj
             UserDefaults.standard.set([identifier], forKey: "AppleLanguages")
         } else {
             locale = Locale.current
             UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+        }
+    }
+
+    private func loadHotkey(forKey key: String) -> HotkeyBinding {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let binding = try? JSONDecoder().decode(HotkeyBinding.self, from: data)
+        else { return .empty }
+        return binding
+    }
+
+    private func saveHotkey(_ binding: HotkeyBinding, forKey key: String) {
+        if let data = try? JSONEncoder().encode(binding) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
+    }
+}
+
+// MARK: - Hotkey Binding Model
+
+struct HotkeyBinding: Codable, Equatable {
+    var keyCode: UInt16?
+    var modifiers: UInt
+
+    static let empty = HotkeyBinding(keyCode: nil, modifiers: 0)
+
+    var isEmpty: Bool { keyCode == nil }
+
+    init(keyCode: UInt16?, modifiers: UInt) {
+        self.keyCode = keyCode
+        self.modifiers = modifiers
+    }
+
+    var nsEventModifiers: NSEvent.ModifierFlags {
+        NSEvent.ModifierFlags(rawValue: modifiers)
+    }
+
+    var displayString: String {
+        guard let keyCode else { return "" }
+        var parts: [String] = []
+        let flags = NSEvent.ModifierFlags(rawValue: modifiers)
+        if flags.contains(.control) { parts.append("⌃") }
+        if flags.contains(.option) { parts.append("⌥") }
+        if flags.contains(.shift) { parts.append("⇧") }
+        if flags.contains(.command) { parts.append("⌘") }
+        parts.append(Self.keyName(for: keyCode))
+        return parts.joined()
+    }
+
+    func matches(_ event: NSEvent) -> Bool {
+        guard let keyCode else { return false }
+        let relevantMask: NSEvent.ModifierFlags = [.command, .option, .shift, .control]
+        return event.keyCode == keyCode
+            && event.modifierFlags.intersection(relevantMask) == NSEvent.ModifierFlags(rawValue: modifiers).intersection(relevantMask)
+    }
+
+    static func keyName(for keyCode: UInt16) -> String {
+        switch Int(keyCode) {
+        case kVK_Return: return "↩"
+        case kVK_Tab: return "⇥"
+        case kVK_Space: return "Space"
+        case kVK_Delete: return "⌫"
+        case kVK_Escape: return "⎋"
+        case kVK_ForwardDelete: return "⌦"
+        case kVK_UpArrow: return "↑"
+        case kVK_DownArrow: return "↓"
+        case kVK_LeftArrow: return "←"
+        case kVK_RightArrow: return "→"
+        case kVK_F1: return "F1"
+        case kVK_F2: return "F2"
+        case kVK_F3: return "F3"
+        case kVK_F4: return "F4"
+        case kVK_F5: return "F5"
+        case kVK_F6: return "F6"
+        case kVK_F7: return "F7"
+        case kVK_F8: return "F8"
+        case kVK_F9: return "F9"
+        case kVK_F10: return "F10"
+        case kVK_F11: return "F11"
+        case kVK_F12: return "F12"
+        default:
+            let source = TISCopyCurrentKeyboardInputSource().takeRetainedValue()
+            let layoutData = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData)
+            guard let data = layoutData else {
+                return "?"
+            }
+            let layout = unsafeBitCast(data, to: CFData.self) as Data
+            var deadKeyState: UInt32 = 0
+            var length = 0
+            var chars = [UniChar](repeating: 0, count: 4)
+            layout.withUnsafeBytes { ptr in
+                guard let base = ptr.baseAddress?.assumingMemoryBound(to: UCKeyboardLayout.self) else { return }
+                UCKeyTranslate(
+                    base,
+                    keyCode,
+                    UInt16(kUCKeyActionDisplay),
+                    0,
+                    UInt32(LMGetKbdType()),
+                    UInt32(kUCKeyTranslateNoDeadKeysBit),
+                    &deadKeyState,
+                    4,
+                    &length,
+                    &chars
+                )
+            }
+            if length > 0 {
+                return String(utf16CodeUnits: chars, count: length).uppercased()
+            }
+            return "?"
         }
     }
 }

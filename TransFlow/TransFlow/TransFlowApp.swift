@@ -7,7 +7,6 @@ struct TransFlowApp: App {
     @State private var viewModel = TransFlowViewModel()
     @State private var floatingPreviewManager = FloatingPreviewPanelManager()
 
-    /// Reference to the shared logger so its log file is created at launch.
     private let errorLogger = ErrorLogger.shared
 
     var body: some Scene {
@@ -21,6 +20,7 @@ struct TransFlowApp: App {
                 .preferredColorScheme(settings.appAppearance.colorScheme)
                 .onAppear {
                     updateChecker.checkOnceOnLaunch()
+                    configureGlobalHotkeys()
                 }
         }
         .windowStyle(.automatic)
@@ -31,12 +31,45 @@ struct TransFlowApp: App {
                     NotificationCenter.default.post(name: .clearHistory, object: nil)
                 }
                 .keyboardShortcut("k", modifiers: .command)
-
-                Button("menu.export_srt") {
-                    NotificationCenter.default.post(name: .exportSRT, object: nil)
-                }
-                .keyboardShortcut("e", modifiers: [.command, .shift])
             }
+        }
+    }
+
+    private func configureGlobalHotkeys() {
+        let mgr = GlobalHotkeyManager.shared
+        mgr.configure(
+            onToggleTranscription: { [viewModel] in
+                viewModel.toggleListening()
+            },
+            onToggleTranslation: { [viewModel] in
+                viewModel.translationService.isEnabled.toggle()
+                if viewModel.translationService.isEnabled {
+                    viewModel.translationService.updateSourceLanguage(from: viewModel.selectedLanguage)
+                } else {
+                    viewModel.translationService.updateConfiguration()
+                }
+            },
+            onToggleFloatingPreview: { [floatingPreviewManager, settings] in
+                floatingPreviewManager.toggle(
+                    viewModel: viewModel,
+                    locale: settings.locale,
+                    colorScheme: settings.appAppearance.colorScheme
+                )
+            },
+            onToggleMainWindow: {
+                toggleMainWindow()
+            }
+        )
+        mgr.start()
+    }
+
+    private func toggleMainWindow() {
+        guard let window = NSApp.windows.first(where: { !($0 is NSPanel) }) else { return }
+        if window.isVisible {
+            window.orderOut(nil)
+        } else {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
 }
@@ -45,6 +78,5 @@ struct TransFlowApp: App {
 
 extension Notification.Name {
     static let clearHistory = Notification.Name("TransFlow.clearHistory")
-    static let exportSRT = Notification.Name("TransFlow.exportSRT")
     static let navigateToSettings = Notification.Name("TransFlow.navigateToSettings")
 }

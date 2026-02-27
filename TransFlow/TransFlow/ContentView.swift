@@ -61,11 +61,6 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .clearHistory)) { _ in
             viewModel.clearHistory()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .exportSRT)) { _ in
-            Task {
-                await viewModel.exportSRT()
-            }
-        }
     }
 
     private var emptyStateView: some View {

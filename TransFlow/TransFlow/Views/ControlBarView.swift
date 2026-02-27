@@ -156,9 +156,6 @@ struct ControlBarView: View {
 
             // Floating preview button
             popUpPreviewButton
-
-            // Export button
-            exportButton
         }
     }
 
@@ -367,48 +364,30 @@ struct ControlBarView: View {
         ) ?? viewModel.translationService.targetLanguage.minimalIdentifier
     }
 
-    // MARK: - Export Button
+    // MARK: - Pop Up Preview Button
 
     private var popUpPreviewButton: some View {
         Button {
-            floatingPreviewManager.show(
+            floatingPreviewManager.toggle(
                 viewModel: viewModel,
                 locale: settings.locale,
                 colorScheme: settings.appAppearance.colorScheme
             )
         } label: {
-            Image(systemName: "arrow.up.left.and.arrow.down.right")
+            Image(systemName: "rectangle.dock")
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.primary)
+                .foregroundStyle(floatingPreviewManager.isVisible ? .white : .primary)
                 .frame(width: 26, height: 26)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(.quaternary.opacity(0.5))
+                        .fill(floatingPreviewManager.isVisible
+                              ? AnyShapeStyle(Color.accentColor)
+                              : AnyShapeStyle(.quaternary.opacity(0.5)))
                 )
         }
         .buttonStyle(.plain)
-        .help(Text("control.pop_up_preview"))
-        .accessibilityLabel(Text("control.pop_up_preview"))
-    }
-
-    private var exportButton: some View {
-        Button {
-            Task {
-                await viewModel.exportSRT()
-            }
-        } label: {
-            Image(systemName: "square.and.arrow.up")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(viewModel.sentences.isEmpty ? .tertiary : .primary)
-                .frame(width: 26, height: 26)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(.quaternary.opacity(0.5))
-                )
-        }
-        .buttonStyle(.plain)
-        .disabled(viewModel.sentences.isEmpty)
-        .help(Text("control.export_srt"))
+        .help(floatingPreviewManager.isVisible ? Text("control.close_preview") : Text("control.pop_up_preview"))
+        .accessibilityLabel(floatingPreviewManager.isVisible ? Text("control.close_preview") : Text("control.pop_up_preview"))
     }
 
     // MARK: - Constants

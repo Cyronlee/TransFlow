@@ -1,5 +1,6 @@
 import SwiftUI
 import Speech
+import Carbon.HIToolbox
 
 /// Settings page with Apple-grade design.
 /// Sections: General (Language), Speech Models, Feedback, About (Version).
@@ -7,6 +8,7 @@ struct SettingsView: View {
     @State private var settings = AppSettings.shared
     @State private var updateChecker = UpdateChecker.shared
     @State private var modelManager = SpeechModelManager.shared
+    @State private var hotkeyManager = GlobalHotkeyManager.shared
     @State private var hasLoadedModels = false
 
     var body: some View {
@@ -22,6 +24,43 @@ struct SettingsView: View {
                     Divider().padding(.leading, 46)
                     appearanceRow
                 }
+
+                // ── Hotkeys Section ──
+                settingsSection(
+                    header: "settings.hotkeys",
+                    icon: "keyboard.fill",
+                    iconColor: .orange
+                ) {
+                    hotkeyRow(
+                        label: "settings.hotkey.toggle_transcription",
+                        icon: "waveform",
+                        iconColor: .red,
+                        binding: $settings.hotkeyToggleTranscription
+                    )
+                    Divider().padding(.leading, 46)
+                    hotkeyRow(
+                        label: "settings.hotkey.toggle_translation",
+                        icon: "translate",
+                        iconColor: .blue,
+                        binding: $settings.hotkeyToggleTranslation
+                    )
+                    Divider().padding(.leading, 46)
+                    hotkeyRow(
+                        label: "settings.hotkey.toggle_floating_preview",
+                        icon: "rectangle.dock",
+                        iconColor: .purple,
+                        binding: $settings.hotkeyToggleFloatingPreview
+                    )
+                    Divider().padding(.leading, 46)
+                    hotkeyRow(
+                        label: "settings.hotkey.toggle_main_window",
+                        icon: "macwindow",
+                        iconColor: .green,
+                        binding: $settings.hotkeyToggleMainWindow
+                    )
+                }
+
+                hotkeyAccessibilityHint
 
                 // ── Speech Models Section ──
                 settingsSection(
@@ -344,9 +383,8 @@ struct SettingsView: View {
     // MARK: - Speech Models Content
 
     private var speechModelsContent: some View {
-        VStack(spacing: 0) {
+        Group {
             if modelManager.supportedLocales.isEmpty {
-                // Loading state
                 HStack {
                     Label {
                         Text("settings.models_loading")
@@ -361,12 +399,17 @@ struct SettingsView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
             } else {
-                ForEach(Array(modelManager.supportedLocales.enumerated()), id: \.element.identifier) { index, locale in
-                    if index > 0 {
-                        Divider().padding(.leading, 46)
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(Array(modelManager.supportedLocales.enumerated()), id: \.element.identifier) { index, locale in
+                            if index > 0 {
+                                Divider().padding(.leading, 46)
+                            }
+                            speechModelRow(for: locale)
+                        }
                     }
-                    speechModelRow(for: locale)
                 }
+                .frame(maxHeight: 200)
             }
         }
     }
@@ -466,7 +509,7 @@ struct SettingsView: View {
                     await modelManager.downloadModel(for: locale)
                 }
             } label: {
-                Text("model_action.download")
+                Text("model_action.select")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 10)
@@ -485,9 +528,19 @@ struct SettingsView: View {
                 .tint(.blue)
 
         case .installed:
-            Text("model_status.ready")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.green)
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 9, weight: .bold))
+                Text("model_status.ready")
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .foregroundStyle(.green)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(Color.green.opacity(0.12))
+            )
 
         case .unsupported, .checking:
             EmptyView()
@@ -536,9 +589,184 @@ struct SettingsView: View {
         .buttonStyle(.plain)
     }
 
+    // MARK: - Hotkey Accessibility Hint
+
+    @ViewBuilder
+    private var hotkeyAccessibilityHint: some View {
+        if hotkeyManager.isAccessibilityGranted {
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.shield")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.green)
+                Text("settings.hotkey.accessibility_granted")
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.top, 6)
+            .padding(.leading, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            HStack(spacing: 4) {
+                Image(systemName: "exclamationmark.shield")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.orange)
+                Text("settings.hotkey.accessibility_hint")
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(.secondary)
+                Button {
+                    hotkeyManager.requestAccessibility()
+                } label: {
+                    Text("settings.hotkey.grant_access")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(Color.accentColor)
+                        )
+                }
+                .buttonStyle(.plain)
+                Spacer()
+                Button {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                        NSWorkspace.shared.open(url)
+                    }
+                } label: {
+                    Text("settings.hotkey.open_accessibility")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.accentColor)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.top, 6)
+            .padding(.leading, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    // MARK: - Hotkey Row
+
+    private func hotkeyRow(
+        label: LocalizedStringKey,
+        icon: String,
+        iconColor: Color,
+        binding: Binding<HotkeyBinding>
+    ) -> some View {
+        HStack {
+            Label {
+                Text(label)
+                    .font(.system(size: 13, weight: .regular))
+            } icon: {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(iconColor)
+                    .frame(width: 24)
+            }
+
+            Spacer()
+
+            HotkeyRecorderView(binding: binding)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
     private func openFeedback() {
         if let url = URL(string: "https://github.com/Cyronlee/TransFlow/issues") {
             NSWorkspace.shared.open(url)
         }
+    }
+}
+
+// MARK: - Hotkey Recorder
+
+struct HotkeyRecorderView: View {
+    @Binding var binding: HotkeyBinding
+    @State private var isRecording = false
+    @State private var eventMonitor: Any?
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if !binding.isEmpty {
+                Button {
+                    binding = .empty
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Button {
+                if isRecording {
+                    stopRecording()
+                } else {
+                    startRecording()
+                }
+            } label: {
+                Text(displayText)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .foregroundStyle(isRecording ? .white : (binding.isEmpty ? .secondary : .primary))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .frame(minWidth: 80)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(isRecording
+                                  ? AnyShapeStyle(Color.accentColor)
+                                  : AnyShapeStyle(.quaternary.opacity(0.5)))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .stroke(isRecording ? Color.accentColor : .clear, lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+        }
+        .onDisappear {
+            stopRecording()
+        }
+    }
+
+    private func startRecording() {
+        isRecording = true
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
+            let keyCode = event.keyCode
+
+            if keyCode == UInt16(kVK_Escape) {
+                stopRecording()
+                return nil
+            }
+
+            let modifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
+            if modifiers.isEmpty { return nil }
+
+            binding = HotkeyBinding(
+                keyCode: keyCode,
+                modifiers: modifiers.rawValue
+            )
+            stopRecording()
+            return nil
+        }
+    }
+
+    private func stopRecording() {
+        isRecording = false
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+        }
+    }
+
+    private var displayText: String {
+        if isRecording {
+            return String(localized: "settings.hotkey.recording")
+        }
+        if binding.isEmpty {
+            return String(localized: "settings.hotkey.not_set")
+        }
+        return binding.displayString
     }
 }
