@@ -267,6 +267,13 @@ struct SessionRowView: View {
     }
 }
 
+// MARK: - Preview Mode
+
+enum PreviewMode: String, CaseIterable {
+    case rich
+    case markdown
+}
+
 // MARK: - Session Detail (Preview)
 
 struct SessionDetailView: View {
@@ -274,15 +281,17 @@ struct SessionDetailView: View {
     let store: JSONLStore
 
     @State private var entries: [JSONLContentEntry] = []
+    @State private var previewMode: PreviewMode = .rich
+    @State private var showTimestamps = true
+    @State private var showTranslation = true
+    @State private var copyFeedback = false
 
     var body: some View {
         VStack(spacing: 0) {
-            // ── Top toolbar with export ──
             detailToolbar
 
             Divider()
 
-            // ── Content preview — reuses TranscriptionView style ──
             if entries.isEmpty {
                 VStack(spacing: 12) {
                     Image(systemName: "text.page.slash")
@@ -294,14 +303,10 @@ struct SessionDetailView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
-                            EntryRowView(entry: entry)
-                        }
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 16)
+                if previewMode == .rich {
+                    richPreview
+                } else {
+                    markdownPreview
                 }
             }
         }
@@ -314,18 +319,142 @@ struct SessionDetailView: View {
         entries = store.readEntries(from: session.url)
     }
 
+    // MARK: - Rich Preview
+
+    private var richPreview: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
+                    EntryRowView(entry: entry)
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
+        }
+    }
+
+    // MARK: - Markdown Preview
+
+    private var markdownText: String {
+        generateMarkdownPreview(
+            entries: entries,
+            sessionName: session.name,
+            showTimestamps: showTimestamps,
+            showTranslation: showTranslation
+        )
+    }
+
+    private var markdownPreview: some View {
+        VStack(spacing: 0) {
+            markdownOptionsBar
+
+            Divider()
+
+            ScrollView {
+                Text(markdownText)
+                    .font(.system(size: 13, weight: .regular, design: .monospaced))
+                    .foregroundStyle(.primary)
+                    .textSelection(.enabled)
+                    .lineSpacing(4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 16)
+            }
+        }
+    }
+
+    private var markdownOptionsBar: some View {
+        HStack(spacing: 16) {
+            HStack(spacing: 12) {
+                markdownToggle(
+                    "history.md.show_time",
+                    icon: "clock",
+                    isOn: $showTimestamps
+                )
+                markdownToggle(
+                    "history.md.show_translation",
+                    icon: "bubble.left.and.text.bubble.right",
+                    isOn: $showTranslation
+                )
+            }
+
+            Spacer()
+
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(markdownText, forType: .string)
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    copyFeedback = true
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        copyFeedback = false
+                    }
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: copyFeedback ? "checkmark" : "doc.on.doc")
+                        .font(.system(size: 11, weight: .medium))
+                    Text(copyFeedback ? "history.md.copied" : "history.md.copy_all")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .foregroundStyle(copyFeedback ? .green : .secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(copyFeedback ? AnyShapeStyle(Color.green.opacity(0.1)) : AnyShapeStyle(.quaternary.opacity(0.3)))
+                )
+            }
+            .buttonStyle(.plain)
+            .contentTransition(.symbolEffect(.replace))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.background)
+    }
+
+    private func markdownToggle(
+        _ titleKey: LocalizedStringKey,
+        icon: String,
+        isOn: Binding<Bool>
+    ) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isOn.wrappedValue.toggle()
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .medium))
+                Text(titleKey)
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .foregroundStyle(isOn.wrappedValue ? .primary : .tertiary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isOn.wrappedValue ? AnyShapeStyle(.quaternary.opacity(0.5)) : AnyShapeStyle(Color.clear))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(.quaternary.opacity(isOn.wrappedValue ? 0 : 0.5), lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - Toolbar
 
     private var detailToolbar: some View {
         HStack {
-            // Session info
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 8) {
                     Text(session.name)
                         .font(.system(size: 13, weight: .semibold))
                         .lineLimit(1)
 
-                    // Entry count badge
                     HStack(spacing: 3) {
                         Image(systemName: "text.quote")
                             .font(.system(size: 9, weight: .medium))
@@ -346,7 +475,8 @@ struct SessionDetailView: View {
 
             Spacer()
 
-            // Export menu button
+            previewModeToggle
+
             Menu {
                 ForEach(ExportFormat.allCases) { format in
                     Button {
@@ -375,6 +505,88 @@ struct SessionDetailView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(.background)
+    }
+
+    private var previewModeToggle: some View {
+        HStack(spacing: 0) {
+            previewModeButton(.rich, icon: "text.alignleft", titleKey: "history.mode.rich")
+            previewModeButton(.markdown, icon: "text.page", titleKey: "history.mode.markdown")
+        }
+        .padding(2)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(.quaternary.opacity(0.2))
+        )
+        .padding(.trailing, 8)
+    }
+
+    private func previewModeButton(_ mode: PreviewMode, icon: String, titleKey: LocalizedStringKey) -> some View {
+        let isSelected = previewMode == mode
+        return Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                previewMode = mode
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .medium))
+                Text(titleKey)
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .foregroundStyle(isSelected ? .primary : .tertiary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(isSelected ? AnyShapeStyle(.quaternary.opacity(0.5)) : AnyShapeStyle(Color.clear))
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Markdown Generation
+
+    private func generateMarkdownPreview(
+        entries: [JSONLContentEntry],
+        sessionName: String,
+        showTimestamps: Bool,
+        showTranslation: Bool
+    ) -> String {
+        guard !entries.isEmpty else { return "" }
+
+        var lines: [String] = []
+        lines.append("# \(sessionName)")
+        lines.append("")
+
+        let formatter = ISO8601DateFormatter()
+
+        for entry in entries {
+            var line = ""
+
+            if showTimestamps {
+                let timeStr: String
+                if let date = formatter.date(from: entry.startTime) {
+                    let displayFormatter = DateFormatter()
+                    displayFormatter.dateFormat = "HH:mm:ss"
+                    timeStr = displayFormatter.string(from: date)
+                } else {
+                    timeStr = entry.startTime
+                }
+                line += "**[\(timeStr)]** "
+            }
+
+            line += entry.originalText
+            lines.append(line)
+
+            if showTranslation, let translation = entry.translatedText, !translation.isEmpty {
+                lines.append("")
+                lines.append("> \(translation)")
+            }
+
+            lines.append("")
+        }
+
+        return lines.joined(separator: "\n")
     }
 }
 
