@@ -119,7 +119,7 @@ open TransFlow/TransFlow.xcodeproj
 ## 💬 交流群
 
 <div align="center">
-  <img src="public/wx.jpg" alt="交流群" width="320">
+  <img src="https://transflow.cyron.space/wxqr.jpg" alt="交流群" width="320">
 </div>
 
 ---
