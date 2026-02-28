@@ -12,7 +12,6 @@ struct HistoryView: View {
                 emptyState
             } else {
                 HSplitView {
-                    // ── Left: Session list ──
                     SessionListView(
                         sessions: $sessions,
                         selectedSessionID: $selectedSessionID,
@@ -21,7 +20,6 @@ struct HistoryView: View {
                     )
                     .frame(minWidth: 220, idealWidth: 260, maxWidth: 360)
 
-                    // ── Right: Content preview ──
                     if let selected = sessions.first(where: { $0.id == selectedSessionID }) {
                         SessionDetailView(session: selected, store: store)
                     } else {
@@ -39,7 +37,6 @@ struct HistoryView: View {
 
     private func refreshSessions() {
         sessions = store.listSessions()
-        // Auto-select the first session if none selected
         if selectedSessionID == nil || !sessions.contains(where: { $0.id == selectedSessionID }) {
             selectedSessionID = sessions.first?.id
         }
@@ -95,7 +92,6 @@ struct SessionListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // List header
             HStack {
                 Text("history.transcriptions")
                     .font(.system(size: 12, weight: .semibold))
@@ -113,7 +109,6 @@ struct SessionListView: View {
                         Capsule().fill(.quaternary.opacity(0.4))
                     )
 
-                // 3-dot menu
                 Menu {
                     Button(role: .destructive) {
                         showClearAllConfirmation = true
@@ -134,7 +129,6 @@ struct SessionListView: View {
 
             Divider()
 
-            // Session list
             List(selection: $selectedSessionID) {
                 ForEach(sessions) { session in
                     SessionRowView(
@@ -197,7 +191,6 @@ struct SessionListView: View {
         if store.renameSession(from: session.name, to: newName) {
             renamingSessionID = nil
             onRefresh()
-            // Keep selection on the renamed item
             selectedSessionID = newName
         }
     }
@@ -246,14 +239,23 @@ struct SessionRowView: View {
             }
 
             HStack(spacing: 8) {
-                // Creation time
                 Text(session.createdAt, format: .dateTime.month(.abbreviated).day().hour().minute())
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
 
                 Spacer()
 
-                // Entry count badge
+                // Recording duration (before entry count)
+                if session.hasRecording {
+                    HStack(spacing: 3) {
+                        Image(systemName: "waveform")
+                            .font(.system(size: 9, weight: .medium))
+                        Text(formatDuration(ms: session.totalRecordingDurationMs))
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    }
+                    .foregroundStyle(.orange)
+                }
+
                 HStack(spacing: 3) {
                     Image(systemName: "text.quote")
                         .font(.system(size: 9, weight: .medium))
@@ -264,6 +266,13 @@ struct SessionRowView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private func formatDuration(ms: Int) -> String {
+        let totalSeconds = ms / 1000
+        let m = totalSeconds / 60
+        let s = totalSeconds % 60
+        return String(format: "%d:%02d", m, s)
     }
 }
 
@@ -285,6 +294,9 @@ struct SessionDetailView: View {
     @State private var showTimestamps = true
     @State private var showTranslation = true
     @State private var copyFeedback = false
+    @State private var audioPlayer = SessionAudioPlayer()
+
+    private var hasRecording: Bool { session.hasRecording }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -309,27 +321,60 @@ struct SessionDetailView: View {
                     markdownPreview
                 }
             }
+
+            if hasRecording {
+                Divider()
+                AudioPlayerBarView(player: audioPlayer)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear { loadEntries() }
-        .onChange(of: session.id) { loadEntries() }
+        .onAppear { loadSession() }
+        .onChange(of: session.id) { loadSession() }
+        .onDisappear { audioPlayer.unload() }
     }
 
-    private func loadEntries() {
-        entries = store.readEntries(from: session.url)
+    private func loadSession() {
+        let allLines = store.readAllLines(from: session.url)
+        entries = allLines.compactMap { if case .content(let e) = $0 { return e } else { return nil } }
+        audioPlayer.unload()
+        if hasRecording {
+            audioPlayer.load(allLines: allLines)
+        }
     }
 
     // MARK: - Rich Preview
 
     private var richPreview: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
-                    EntryRowView(entry: entry)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(entries.enumerated()), id: \.offset) { index, entry in
+                        EntryRowView(
+                            entry: entry,
+                            isActive: audioPlayer.activeEntryIndex == index,
+                            hasAudioOffset: audioPlayer.entryOffset(at: index) != nil,
+                            onTimestampTap: {
+                                if audioPlayer.entryOffset(at: index) != nil {
+                                    audioPlayer.seekToEntry(at: index)
+                                    if !audioPlayer.isPlaying {
+                                        audioPlayer.play()
+                                    }
+                                }
+                            }
+                        )
+                        .id(index)
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 16)
+            }
+            .onChange(of: audioPlayer.activeEntryIndex) { _, newIndex in
+                if let idx = newIndex {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        proxy.scrollTo(idx, anchor: .center)
+                    }
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
         }
     }
 
@@ -454,6 +499,21 @@ struct SessionDetailView: View {
                     Text(session.name)
                         .font(.system(size: 13, weight: .semibold))
                         .lineLimit(1)
+
+                    if hasRecording {
+                        HStack(spacing: 3) {
+                            Image(systemName: "waveform")
+                                .font(.system(size: 9, weight: .medium))
+                            Text(formatDuration(ms: session.totalRecordingDurationMs))
+                                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        }
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule().fill(Color.orange.opacity(0.1))
+                        )
+                    }
 
                     HStack(spacing: 3) {
                         Image(systemName: "text.quote")
@@ -588,34 +648,50 @@ struct SessionDetailView: View {
 
         return lines.joined(separator: "\n")
     }
+
+    private func formatDuration(ms: Int) -> String {
+        let totalSeconds = ms / 1000
+        let m = totalSeconds / 60
+        let s = totalSeconds % 60
+        return String(format: "%d:%02d", m, s)
+    }
 }
 
-// MARK: - Entry Row (mirrors SentenceRow from TranscriptionView)
+// MARK: - Entry Row
 
 struct EntryRowView: View {
     let entry: JSONLContentEntry
+    var isActive: Bool = false
+    var hasAudioOffset: Bool = false
+    var onTimestampTap: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Top separator
             Rectangle()
                 .fill(.quaternary.opacity(0.5))
                 .frame(height: 0.5)
                 .padding(.vertical, 10)
 
             HStack(alignment: .firstTextBaseline, spacing: 12) {
-                // Timestamp badge
+                // Timestamp badge — clickable when audio offset exists
                 Text(displayTime)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(hasAudioOffset ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.tertiary))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(
                         RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(.quaternary.opacity(0.3))
+                            .fill(hasAudioOffset ? AnyShapeStyle(Color.accentColor.opacity(0.1)) : AnyShapeStyle(.quaternary.opacity(0.3)))
                     )
+                    .onHover { inside in
+                        if hasAudioOffset {
+                            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                        }
+                    }
+                    .onTapGesture {
+                        onTimestampTap?()
+                    }
 
-                // Text content
                 VStack(alignment: .leading, spacing: 4) {
                     Text(entry.originalText)
                         .font(.system(size: 14, weight: .regular))
@@ -631,7 +707,19 @@ struct EntryRowView: View {
                             .lineSpacing(2)
                     }
                 }
+
+                Spacer(minLength: 0)
             }
+            .padding(.vertical, 4)
+            .padding(.horizontal, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isActive ? Color.accentColor.opacity(0.1) : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(isActive ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
+            )
         }
     }
 

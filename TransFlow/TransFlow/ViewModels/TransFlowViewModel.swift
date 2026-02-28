@@ -1,7 +1,7 @@
 import SwiftUI
 import Speech
 
-/// Main ViewModel coordinating all services: audio capture, speech engine, and translation.
+/// Main ViewModel coordinating all services: audio capture, speech engine, translation, and recording.
 @Observable
 @MainActor
 final class TransFlowViewModel {
@@ -44,10 +44,15 @@ final class TransFlowViewModel {
     // MARK: - Private
 
     private let audioCaptureService = AudioCaptureService()
+    private let audioRecordingService = AudioRecordingService()
     private var speechEngine: SpeechEngine?
     private var stopAudioCapture: (@Sendable () -> Void)?
     private var listeningTask: Task<Void, Never>?
     private var audioLevelTask: Task<Void, Never>?
+    private var recordingTask: Task<Void, Never>?
+
+    /// Current recording file name (set while recording is active).
+    private var currentRecordingFileName: String?
 
     // MARK: - Initialization
 
@@ -58,25 +63,12 @@ final class TransFlowViewModel {
     }
 
     private func initialize() async {
-        // Create initial JSONL session for this app launch
         jsonlStore.createSession()
-
-        // Request microphone permission
         micPermissionGranted = await AudioCaptureService.requestPermission()
-
-        // Sync initial transcription language to translation service
         translationService.updateSourceLanguage(from: selectedLanguage)
-
-        // Load supported languages
         await loadSupportedLanguages()
-
-        // Load available apps
         await refreshAvailableApps()
-
-        // Check model status for the default transcription language
         await modelManager.checkCurrentStatus(for: selectedLanguage)
-
-        // Auto-download model if not installed
         if !modelManager.currentModelStatus.isReady {
             await modelManager.ensureModelReady(for: selectedLanguage)
         }
@@ -97,11 +89,8 @@ final class TransFlowViewModel {
         }
         selectedLanguage = locale
         speechEngine = SpeechEngine(locale: locale)
-
-        // Sync transcription language to translation source language
         translationService.updateSourceLanguage(from: locale)
 
-        // Check and download model for the new language
         Task {
             await modelManager.checkCurrentStatus(for: locale)
             if !modelManager.currentModelStatus.isReady {
@@ -128,7 +117,6 @@ final class TransFlowViewModel {
 
         listeningTask = Task {
             do {
-                // Ensure model is ready before starting
                 let modelReady = await modelManager.ensureModelReady(for: selectedLanguage)
                 guard modelReady else {
                     showModelNotReadyAlert = true
@@ -139,7 +127,6 @@ final class TransFlowViewModel {
                 let engine = SpeechEngine(locale: selectedLanguage)
                 self.speechEngine = engine
 
-                // Start audio capture based on source
                 let audioStream: AsyncStream<AudioChunk>
                 let stop: @Sendable () -> Void
 
@@ -169,12 +156,15 @@ final class TransFlowViewModel {
 
                 self.stopAudioCapture = stop
 
-                // Fork audio stream: one for engine, one for UI level
+                // Fork audio stream: engine, UI level, and recording
                 let (engineStream, engineContinuation) = AsyncStream<AudioChunk>.makeStream(
                     bufferingPolicy: .bufferingNewest(256)
                 )
                 let (levelStream, levelContinuation) = AsyncStream<AudioChunk>.makeStream(
                     bufferingPolicy: .bufferingNewest(64)
+                )
+                let (recordingStream, recordingContinuation) = AsyncStream<AudioChunk>.makeStream(
+                    bufferingPolicy: .bufferingNewest(256)
                 )
 
                 // Audio level update task
@@ -188,20 +178,33 @@ final class TransFlowViewModel {
                     }
                 }
 
-                // Fork task
+                // Start recording — each start creates a new uniquely-named file
+                let (recFileName, recStartTime) = audioRecordingService.startRecording()
+                self.currentRecordingFileName = recFileName
+                jsonlStore.appendRecordingStart(fileName: recFileName, timestamp: recStartTime)
+
+                nonisolated(unsafe) let recorder = audioRecordingService
+                recordingTask = Task.detached {
+                    for await chunk in recordingStream {
+                        recorder.writeChunk(chunk)
+                    }
+                }
+
+                // Fork task — fan out audio to all three consumers
                 let forkTask = Task.detached {
                     for await chunk in audioStream {
                         engineContinuation.yield(chunk)
                         levelContinuation.yield(chunk)
+                        recordingContinuation.yield(chunk)
                     }
                     engineContinuation.finish()
                     levelContinuation.finish()
+                    recordingContinuation.finish()
                 }
 
                 listeningState = .active
                 errorMessage = nil
 
-                // Process transcription events
                 let events = engine.processStream(engineStream)
                 for await event in events {
                     switch event {
@@ -210,12 +213,10 @@ final class TransFlowViewModel {
                         translationService.translatePartial(text)
 
                     case .sentenceComplete(var sentence):
-                        // Translate complete sentence
                         if let translation = await translationService.translateSentence(sentence.text) {
                             sentence.translation = translation
                         }
                         sentences.append(sentence)
-                        // Persist to JSONL
                         jsonlStore.appendEntry(sentence: sentence)
                         currentPartialText = ""
                         translationService.currentPartialTranslation = ""
@@ -248,11 +249,18 @@ final class TransFlowViewModel {
             if !trimmed.isEmpty {
                 let sentence = TranscriptionSentence(timestamp: Date(), text: trimmed)
                 sentences.append(sentence)
-                // Persist to JSONL
                 jsonlStore.appendEntry(sentence: sentence)
             }
             currentPartialText = ""
         }
+
+        // Stop recording and write marker
+        if let info = audioRecordingService.stopRecording(), let recFileName = currentRecordingFileName {
+            jsonlStore.appendRecordingStop(fileName: recFileName, durationMs: info.durationMs)
+        }
+        recordingTask?.cancel()
+        recordingTask = nil
+        currentRecordingFileName = nil
 
         stopAudioCapture?()
         stopAudioCapture = nil
@@ -276,17 +284,13 @@ final class TransFlowViewModel {
 
     // MARK: - Session
 
-    /// Create a new session, clearing in-memory data and starting a fresh JSONL file.
     func createNewSession(name: String? = nil) {
-        // Stop listening if active
         if listeningState != .idle {
             stopListening()
         }
-        // Clear in-memory state
         sentences.removeAll()
         currentPartialText = ""
         translationService.currentPartialTranslation = ""
-        // Create new JSONL file
         jsonlStore.createSession(name: name)
     }
 

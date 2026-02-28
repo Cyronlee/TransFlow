@@ -6,13 +6,17 @@ import Foundation
 enum JSONLLineType: String, Codable {
     case metadata
     case content
+    case recordingStart = "recording_start"
+    case recordingStop = "recording_stop"
 }
 
-/// A single JSONL line — either metadata or a content entry.
+/// A single JSONL line — metadata, content, or recording marker.
 /// Uses a tagged union pattern for easy encode/decode.
 enum JSONLLine: Codable {
     case metadata(JSONLMetadata)
     case content(JSONLContentEntry)
+    case recordingStart(JSONLRecordingStart)
+    case recordingStop(JSONLRecordingStop)
 
     // MARK: Codable
 
@@ -28,6 +32,10 @@ enum JSONLLine: Codable {
             self = .metadata(try JSONLMetadata(from: decoder))
         case .content:
             self = .content(try JSONLContentEntry(from: decoder))
+        case .recordingStart:
+            self = .recordingStart(try JSONLRecordingStart(from: decoder))
+        case .recordingStop:
+            self = .recordingStop(try JSONLRecordingStop(from: decoder))
         }
     }
 
@@ -37,6 +45,10 @@ enum JSONLLine: Codable {
             try m.encode(to: encoder)
         case .content(let c):
             try c.encode(to: encoder)
+        case .recordingStart(let r):
+            try r.encode(to: encoder)
+        case .recordingStop(let r):
+            try r.encode(to: encoder)
         }
     }
 }
@@ -94,5 +106,46 @@ struct JSONLContentEntry: Codable {
         self.endTime = endTime
         self.originalText = originalText
         self.translatedText = translatedText
+    }
+}
+
+// MARK: - Recording Markers
+
+/// Marks the start of a recording segment in the JSONL file.
+struct JSONLRecordingStart: Codable {
+    let type: JSONLLineType = .recordingStart
+    let recordingFile: String
+    let timestamp: String
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case recordingFile = "recording_file"
+        case timestamp
+    }
+
+    init(recordingFile: String, timestamp: Date = Date()) {
+        self.recordingFile = recordingFile
+        self.timestamp = ISO8601DateFormatter().string(from: timestamp)
+    }
+}
+
+/// Marks the end of a recording segment in the JSONL file.
+struct JSONLRecordingStop: Codable {
+    let type: JSONLLineType = .recordingStop
+    let recordingFile: String
+    let timestamp: String
+    let durationMs: Int
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case recordingFile = "recording_file"
+        case timestamp
+        case durationMs = "duration_ms"
+    }
+
+    init(recordingFile: String, timestamp: Date = Date(), durationMs: Int) {
+        self.recordingFile = recordingFile
+        self.timestamp = ISO8601DateFormatter().string(from: timestamp)
+        self.durationMs = durationMs
     }
 }
