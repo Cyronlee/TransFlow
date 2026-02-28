@@ -54,6 +54,9 @@ final class TransFlowViewModel {
     /// Current recording file name (set while recording is active).
     private var currentRecordingFileName: String?
 
+    /// When the current partial utterance started (for flushing on stop).
+    private var partialStartTimestamp: Date?
+
     // MARK: - Initialization
 
     init() {
@@ -209,6 +212,9 @@ final class TransFlowViewModel {
                 for await event in events {
                     switch event {
                     case .partial(let text):
+                        if partialStartTimestamp == nil && !text.isEmpty {
+                            partialStartTimestamp = Date()
+                        }
                         currentPartialText = text
                         translationService.translatePartial(text)
 
@@ -219,6 +225,7 @@ final class TransFlowViewModel {
                         sentences.append(sentence)
                         jsonlStore.appendEntry(sentence: sentence)
                         currentPartialText = ""
+                        partialStartTimestamp = nil
                         translationService.currentPartialTranslation = ""
 
                     case .error(let message):
@@ -226,6 +233,7 @@ final class TransFlowViewModel {
                         ErrorLogger.shared.log(message, source: "Transcription")
                     }
                 }
+
 
                 forkTask.cancel()
 
@@ -247,11 +255,16 @@ final class TransFlowViewModel {
         if !currentPartialText.isEmpty {
             let trimmed = currentPartialText.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty {
-                let sentence = TranscriptionSentence(timestamp: Date(), text: trimmed)
+                let sentence = TranscriptionSentence(
+                    startTimestamp: partialStartTimestamp ?? Date(),
+                    timestamp: Date(),
+                    text: trimmed
+                )
                 sentences.append(sentence)
                 jsonlStore.appendEntry(sentence: sentence)
             }
             currentPartialText = ""
+            partialStartTimestamp = nil
         }
 
         // Stop recording and write marker

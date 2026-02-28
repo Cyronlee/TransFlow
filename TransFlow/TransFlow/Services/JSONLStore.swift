@@ -60,9 +60,9 @@ final class JSONLStore {
 
     // MARK: - Appending
 
-    func appendEntry(sentence: TranscriptionSentence, endTime: Date? = nil) {
+    func appendEntry(sentence: TranscriptionSentence) {
         guard let fileURL = currentFileURL else { return }
-        let entry = JSONLContentEntry(sentence: sentence, endTime: endTime)
+        let entry = JSONLContentEntry(sentence: sentence)
         guard let line = encodeLine(.content(entry)) else { return }
         appendRaw(line, to: fileURL)
     }

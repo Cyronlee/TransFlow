@@ -25,6 +25,8 @@ struct SettingsView: View {
                     appearanceRow
                 }
 
+                hotkeyAccessibilityHint
+
                 // ── Hotkeys Section ──
                 settingsSection(
                     header: "settings.hotkeys",
@@ -59,8 +61,6 @@ struct SettingsView: View {
                         binding: $settings.hotkeyToggleMainWindow
                     )
                 }
-
-                hotkeyAccessibilityHint
 
                 // ── Speech Models Section ──
                 settingsSection(
@@ -399,17 +399,14 @@ struct SettingsView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
             } else {
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach(Array(modelManager.supportedLocales.enumerated()), id: \.element.identifier) { index, locale in
-                            if index > 0 {
-                                Divider().padding(.leading, 46)
-                            }
-                            speechModelRow(for: locale)
+                VStack(spacing: 0) {
+                    ForEach(Array(modelManager.supportedLocales.enumerated()), id: \.element.identifier) { index, locale in
+                        if index > 0 {
+                            Divider().padding(.leading, 46)
                         }
+                        speechModelRow(for: locale)
                     }
                 }
-                .frame(maxHeight: 200)
             }
         }
     }

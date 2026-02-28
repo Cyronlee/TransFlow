@@ -95,56 +95,42 @@ final class SessionAudioPlayer {
             if case .content(let e) = $0 { return e } else { return nil }
         }
 
-        // For each entry we compute two timeline positions:
-        //   - "end offset": the point when the sentence was finalized (startTime in JSONL,
-        //     which is actually the sentence completion timestamp)
-        //   - "start offset": approximate start of the utterance, estimated as the previous
-        //     entry's end offset (or segment start for the first entry)
-        var rawEndOffsets: [TimeInterval?] = []
-
-        for entry in entries {
-            guard let entryDate = isoFormatter.date(from: entry.startTime) else {
-                rawEndOffsets.append(nil)
-                continue
-            }
-
-            var matched: PlaybackSegment?
-            var matchedInfo: (fileName: String, timestamp: String, startDate: Date)?
-            for seg in loadedSegments {
-                if let info = segmentInfos.first(where: { $0.fileName == seg.fileName }),
-                   info.startDate <= entryDate {
-                    matched = seg
-                    matchedInfo = info
-                }
-            }
-
-            if let seg = matched, let info = matchedInfo {
-                let relative = entryDate.timeIntervalSince(info.startDate)
-                rawEndOffsets.append(seg.globalOffset + max(0, relative))
-            } else {
-                rawEndOffsets.append(nil)
-            }
-        }
-
-        // Derive start offsets: entry i starts where entry i-1 ended.
-        // For the first entry in a segment, start at the segment's global offset.
         var offsets: [TimeInterval?] = []
         var endOffsets: [TimeInterval?] = []
 
-        for (i, endOpt) in rawEndOffsets.enumerated() {
-            guard endOpt != nil else {
+        for entry in entries {
+            guard let startDate = isoFormatter.date(from: entry.startTime),
+                  let endDate = isoFormatter.date(from: entry.endTime) else {
                 offsets.append(nil)
                 endOffsets.append(nil)
                 continue
             }
-            endOffsets.append(endOpt)
 
-            if i == 0 {
-                offsets.append(0)
-            } else if let prevEnd = rawEndOffsets[i - 1] {
-                offsets.append(prevEnd)
+            var matchedStart: (seg: PlaybackSegment, info: (fileName: String, timestamp: String, startDate: Date))?
+            var matchedEnd: (seg: PlaybackSegment, info: (fileName: String, timestamp: String, startDate: Date))?
+            for seg in loadedSegments {
+                if let info = segmentInfos.first(where: { $0.fileName == seg.fileName }),
+                   info.startDate <= startDate {
+                    matchedStart = (seg, info)
+                }
+                if let info = segmentInfos.first(where: { $0.fileName == seg.fileName }),
+                   info.startDate <= endDate {
+                    matchedEnd = (seg, info)
+                }
+            }
+
+            if let ms = matchedStart {
+                let relative = startDate.timeIntervalSince(ms.info.startDate)
+                offsets.append(ms.seg.globalOffset + max(0, relative))
             } else {
-                offsets.append(endOpt)
+                offsets.append(nil)
+            }
+
+            if let me = matchedEnd {
+                let relative = endDate.timeIntervalSince(me.info.startDate)
+                endOffsets.append(me.seg.globalOffset + max(0, relative))
+            } else {
+                endOffsets.append(nil)
             }
         }
 

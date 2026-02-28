@@ -93,10 +93,10 @@ struct JSONLContentEntry: Codable {
     }
 
     /// Convenience initializer from a `TranscriptionSentence`.
-    init(sentence: TranscriptionSentence, endTime: Date? = nil) {
+    init(sentence: TranscriptionSentence) {
         let formatter = ISO8601DateFormatter()
-        self.startTime = formatter.string(from: sentence.timestamp)
-        self.endTime = formatter.string(from: endTime ?? Date())
+        self.startTime = formatter.string(from: sentence.startTimestamp)
+        self.endTime = formatter.string(from: sentence.timestamp)
         self.originalText = sentence.text
         self.translatedText = sentence.translation
     }

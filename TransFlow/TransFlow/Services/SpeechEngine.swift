@@ -1,4 +1,5 @@
 import Speech
+import CoreMedia
 @preconcurrency import AVFoundation
 
 /// Uses macOS 26.0 SpeechAnalyzer + SpeechTranscriber for real-time transcription.
@@ -55,10 +56,13 @@ final class SpeechEngine: Sendable {
                     standardFormatWithSampleRate: 16_000, channels: 1
                 )!
                 let converter: AVAudioConverter?
+                let outputSampleRate: Double
                 if let analyzerFormat {
                     converter = AVAudioConverter(from: sourceFormat, to: analyzerFormat)
+                    outputSampleRate = analyzerFormat.sampleRate
                 } else {
                     converter = nil
+                    outputSampleRate = 16_000
                 }
 
                 // Pre-allocate reusable output buffer
@@ -69,7 +73,11 @@ final class SpeechEngine: Sendable {
                     reusableBuffer = AVAudioPCMBuffer(pcmFormat: analyzerFormat, frameCapacity: capacity)
                 } else { reusableBuffer = nil }
 
+                // Wall-clock anchor: maps CMTime(0) in the analyzer timeline to a real Date.
+                let sessionStartDate = Date()
+
                 // 7. Start result consumption first (avoid losing early results)
+                nonisolated(unsafe) let capturedStartDate = sessionStartDate
                 let resultTask = Task(priority: .userInitiated) {
                     do {
                         for try await result in transcriber.results {
@@ -77,8 +85,17 @@ final class SpeechEngine: Sendable {
                             if result.isFinal {
                                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                                 if !trimmed.isEmpty {
+                                    let range = result.range
+                                    let startSec = CMTimeGetSeconds(range.start)
+                                    let endSec = CMTimeGetSeconds(CMTimeRangeGetEnd(range))
+                                    let startDate = startSec.isFinite
+                                        ? capturedStartDate.addingTimeInterval(startSec)
+                                        : Date()
+                                    let endDate = endSec.isFinite
+                                        ? capturedStartDate.addingTimeInterval(endSec)
+                                        : Date()
                                     continuation.yield(.sentenceComplete(
-                                        TranscriptionSentence(timestamp: Date(), text: trimmed)
+                                        TranscriptionSentence(startTimestamp: startDate, timestamp: endDate, text: trimmed)
                                     ))
                                     continuation.yield(.partial(""))
                                 }
@@ -95,27 +112,36 @@ final class SpeechEngine: Sendable {
                 // 8. Start autonomous analysis
                 try await analyzer.start(inputSequence: inputSequence)
 
-                // 9. Feed audio: accumulate ~200ms before batch sending
+                // 9. Feed audio: accumulate ~200ms before batch sending.
+                //    Track cumulative sample count to provide accurate bufferStartTime.
                 var accumulator: [Float] = []
                 let batchThreshold = Int(16_000 * 0.2)
+                var cumulativeOutputFrames: Int64 = 0
 
                 for await chunk in audioStream {
                     accumulator.append(contentsOf: chunk.samples)
                     guard accumulator.count >= batchThreshold else { continue }
 
-                    if let input = Self.convertToAnalyzerInput(
-                        samples: accumulator, converter: converter, reusableBuffer: reusableBuffer
+                    let startTime = CMTime(value: cumulativeOutputFrames, timescale: CMTimeScale(outputSampleRate))
+                    if let (input, frameCount) = Self.convertToAnalyzerInput(
+                        samples: accumulator, converter: converter,
+                        reusableBuffer: reusableBuffer, bufferStartTime: startTime
                     ) {
                         inputBuilder.yield(input)
+                        cumulativeOutputFrames += Int64(frameCount)
                     }
                     accumulator.removeAll(keepingCapacity: true)
                 }
 
                 // Flush remaining
-                if !accumulator.isEmpty, let input = Self.convertToAnalyzerInput(
-                    samples: accumulator, converter: converter, reusableBuffer: reusableBuffer
-                ) {
-                    inputBuilder.yield(input)
+                if !accumulator.isEmpty {
+                    let startTime = CMTime(value: cumulativeOutputFrames, timescale: CMTimeScale(outputSampleRate))
+                    if let (input, _) = Self.convertToAnalyzerInput(
+                        samples: accumulator, converter: converter,
+                        reusableBuffer: reusableBuffer, bufferStartTime: startTime
+                    ) {
+                        inputBuilder.yield(input)
+                    }
                 }
 
                 // 10. Finish
@@ -136,11 +162,13 @@ final class SpeechEngine: Sendable {
     // MARK: - Helpers
 
     /// Convert Float32 samples to AnalyzerInput (with format conversion).
+    /// Returns the input and the number of output frames written.
     private static func convertToAnalyzerInput(
         samples: [Float],
         converter: AVAudioConverter?,
-        reusableBuffer: AVAudioPCMBuffer?
-    ) -> AnalyzerInput? {
+        reusableBuffer: AVAudioPCMBuffer?,
+        bufferStartTime: CMTime
+    ) -> (AnalyzerInput, AVAudioFrameCount)? {
         guard let pcmBuffer = createPCMBuffer(from: samples) else { return nil }
 
         if let converter, let reusableBuffer {
@@ -153,9 +181,9 @@ final class SpeechEngine: Sendable {
                 consumed = true; outStatus.pointee = .haveData; return capturedBuffer
             }
             guard error == nil, reusableBuffer.frameLength > 0 else { return nil }
-            return AnalyzerInput(buffer: reusableBuffer)
+            return (AnalyzerInput(buffer: reusableBuffer, bufferStartTime: bufferStartTime), reusableBuffer.frameLength)
         } else {
-            return AnalyzerInput(buffer: pcmBuffer)
+            return (AnalyzerInput(buffer: pcmBuffer, bufferStartTime: bufferStartTime), pcmBuffer.frameLength)
         }
     }
 
