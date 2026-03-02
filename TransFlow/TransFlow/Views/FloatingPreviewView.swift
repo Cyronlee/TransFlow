@@ -59,12 +59,12 @@ struct FloatingPreviewView: View {
                 pinButton
                 closeButton
             }
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 fontDecreaseButton
                 fontIncreaseButton
             }
         }
-        .padding(.top, 10)
+        .padding(.top, 4)
         .padding(.trailing, 10)
         .opacity(shouldShowControls ? 1 : 0)
         .allowsHitTesting(shouldShowControls)
@@ -77,9 +77,9 @@ struct FloatingPreviewView: View {
             panelManager.togglePin()
         } label: {
             Image(systemName: panelManager.isPinned ? "pin.fill" : "pin")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(panelManager.isPinned ? Color.accentColor : Color.secondary)
-                .frame(width: 24, height: 24)
+                .frame(width: 19, height: 19)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -93,9 +93,9 @@ struct FloatingPreviewView: View {
             panelManager.close()
         } label: {
             Image(systemName: "xmark")
-                .font(.system(size: 11, weight: .bold))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .frame(width: 24, height: 24)
+                .frame(width: 19, height: 19)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -111,7 +111,7 @@ struct FloatingPreviewView: View {
             Image(systemName: "textformat.size.smaller")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .frame(width: 24, height: 24)
+                .frame(width: 19, height: 19)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -127,7 +127,7 @@ struct FloatingPreviewView: View {
             Image(systemName: "textformat.size.larger")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .frame(width: 24, height: 24)
+                .frame(width: 19, height: 19)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
