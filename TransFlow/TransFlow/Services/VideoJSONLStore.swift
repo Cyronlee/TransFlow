@@ -102,7 +102,10 @@ final class VideoJSONLStore {
                         createdAt: createdAt,
                         entryCount: entries.count,
                         videoFile: metadata?.videoFile,
+                        originalFilePath: metadata?.originalFilePath,
                         durationSeconds: metadata?.durationSeconds,
+                        sourceLanguage: metadata?.sourceLanguage,
+                        targetLanguage: metadata?.targetLanguage,
                         diarizationEnabled: metadata?.diarizationEnabled ?? false,
                         speakerCount: Set(entries.compactMap(\.speakerId)).count
                     )
@@ -216,7 +219,10 @@ struct VideoSessionFile: Identifiable {
     let createdAt: Date
     let entryCount: Int
     let videoFile: String?
+    let originalFilePath: String?
     let durationSeconds: Double?
+    let sourceLanguage: String?
+    let targetLanguage: String?
     let diarizationEnabled: Bool
     let speakerCount: Int
 

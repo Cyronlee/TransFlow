@@ -13,9 +13,7 @@ struct VideoTranscriptionView: View {
     var body: some View {
         Group {
             switch viewModel.state {
-            case .completed:
-                resultView
-            case .idle, .selectingFile:
+            case .idle, .selectingFile, .completed:
                 setupView
             case .failed(let message):
                 VStack(spacing: 0) {
@@ -383,83 +381,6 @@ struct VideoTranscriptionView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity)
-    }
-
-    // MARK: - Result View
-
-    private var resultView: some View {
-        VSplitView {
-            // Video player (top)
-            videoPlayerSection
-                .frame(minHeight: 200, idealHeight: 300)
-
-            // Transcript (bottom)
-            transcriptSection
-                .frame(minHeight: 200)
-        }
-    }
-
-    private var videoPlayerSection: some View {
-        ZStack(alignment: .topTrailing) {
-            if let player = viewModel.player {
-                VideoPlayer(player: player)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .onAppear {
-                        viewModel.startPlaybackObservation()
-                    }
-            } else {
-                Color.black
-                    .overlay {
-                        Image(systemName: "film")
-                            .font(.system(size: 40, weight: .thin))
-                            .foregroundStyle(.white.opacity(0.3))
-                    }
-            }
-
-            Button {
-                viewModel.clearFile()
-            } label: {
-                Image(systemName: "arrow.counterclockwise")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(6)
-                    .background(
-                        Circle()
-                            .fill(.black.opacity(0.5))
-                    )
-            }
-            .buttonStyle(.plain)
-            .help("video.new_transcription")
-            .padding(8)
-        }
-    }
-
-    private var transcriptSection: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(viewModel.segments.enumerated()), id: \.element.id) { index, segment in
-                        VideoSegmentRow(
-                            segment: segment,
-                            isActive: viewModel.activeSegmentIndex == index,
-                            onTap: {
-                                viewModel.seekToSegment(at: index)
-                            }
-                        )
-                        .id(index)
-                    }
-                }
-                .padding(.horizontal, 24)
-                .padding(.vertical, 16)
-            }
-            .onChange(of: viewModel.activeSegmentIndex) { _, newIndex in
-                if let idx = newIndex {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        proxy.scrollTo(idx, anchor: .center)
-                    }
-                }
-            }
-        }
     }
 
     // MARK: - Error Banner

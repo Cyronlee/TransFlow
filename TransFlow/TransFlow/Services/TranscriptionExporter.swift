@@ -34,7 +34,7 @@ enum ExportFormat: String, CaseIterable, Identifiable {
 /// Unified exporter that can generate SRT or Markdown from JSONL content entries.
 enum TranscriptionExporter {
 
-    // MARK: - Generate Content
+    // MARK: - Generate Content (Live Sessions)
 
     /// Generate export content from JSONL content entries.
     static func generate(entries: [JSONLContentEntry], format: ExportFormat, sessionName: String? = nil) -> String {
@@ -46,7 +46,19 @@ enum TranscriptionExporter {
         }
     }
 
-    // MARK: - SRT
+    // MARK: - Generate Content (Video Sessions)
+
+    /// Generate export content from video JSONL content entries (time offsets in seconds).
+    static func generate(videoEntries: [VideoJSONLContentEntry], format: ExportFormat, sessionName: String? = nil) -> String {
+        switch format {
+        case .srt:
+            return generateVideoSRT(from: videoEntries)
+        case .markdown:
+            return generateVideoMarkdown(from: videoEntries, sessionName: sessionName)
+        }
+    }
+
+    // MARK: - SRT (Live)
 
     private static func generateSRT(from entries: [JSONLContentEntry]) -> String {
         guard !entries.isEmpty else { return "" }
@@ -82,14 +94,35 @@ enum TranscriptionExporter {
         return lines.joined(separator: "\n")
     }
 
-    // MARK: - Markdown
+    // MARK: - SRT (Video)
+
+    private static func generateVideoSRT(from entries: [VideoJSONLContentEntry]) -> String {
+        guard !entries.isEmpty else { return "" }
+
+        var lines: [String] = []
+        for (index, entry) in entries.enumerated() {
+            lines.append("\(index + 1)")
+            lines.append("\(formatSRTTime(entry.startTime)) --> \(formatSRTTime(entry.endTime))")
+            if let speaker = entry.speakerId {
+                lines.append("[\(speaker.replacingOccurrences(of: "_", with: " "))] \(entry.originalText)")
+            } else {
+                lines.append(entry.originalText)
+            }
+            if let translation = entry.translatedText, !translation.isEmpty {
+                lines.append(translation)
+            }
+            lines.append("")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    // MARK: - Markdown (Live)
 
     private static func generateMarkdown(from entries: [JSONLContentEntry], sessionName: String?) -> String {
         guard !entries.isEmpty else { return "" }
 
         var lines: [String] = []
 
-        // Title
         if let name = sessionName {
             lines.append("# \(name)")
         } else {
@@ -100,7 +133,6 @@ enum TranscriptionExporter {
         let formatter = ISO8601DateFormatter()
 
         for entry in entries {
-            // Timestamp
             let timeStr: String
             if let date = formatter.date(from: entry.startTime) {
                 let displayFormatter = DateFormatter()
@@ -121,6 +153,38 @@ enum TranscriptionExporter {
         return lines.joined(separator: "\n")
     }
 
+    // MARK: - Markdown (Video)
+
+    private static func generateVideoMarkdown(from entries: [VideoJSONLContentEntry], sessionName: String?) -> String {
+        guard !entries.isEmpty else { return "" }
+
+        var lines: [String] = []
+
+        if let name = sessionName {
+            lines.append("# \(name)")
+        } else {
+            lines.append("# Transcription")
+        }
+        lines.append("")
+
+        for entry in entries {
+            let timeStr = formatTimestamp(entry.startTime)
+            var line = "**[\(timeStr)]**"
+            if let speaker = entry.speakerId {
+                line += " _\(speaker.replacingOccurrences(of: "_", with: " "))_:"
+            }
+            line += " \(entry.originalText)"
+            lines.append(line)
+            if let translation = entry.translatedText, !translation.isEmpty {
+                lines.append("")
+                lines.append("> \(translation)")
+            }
+            lines.append("")
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
     // MARK: - Export to File (Save Panel)
 
     /// Show save panel and export transcription entries to a file.
@@ -131,6 +195,26 @@ enum TranscriptionExporter {
         sessionName: String? = nil
     ) async {
         let content = generate(entries: entries, format: format, sessionName: sessionName)
+        await saveToFile(content: content, format: format, sessionName: sessionName)
+    }
+
+    /// Show save panel and export video transcription entries to a file.
+    @MainActor
+    static func exportVideoToFile(
+        entries: [VideoJSONLContentEntry],
+        format: ExportFormat,
+        sessionName: String? = nil
+    ) async {
+        let content = generate(videoEntries: entries, format: format, sessionName: sessionName)
+        await saveToFile(content: content, format: format, sessionName: sessionName)
+    }
+
+    @MainActor
+    private static func saveToFile(
+        content: String,
+        format: ExportFormat,
+        sessionName: String?
+    ) async {
         guard !content.isEmpty else { return }
 
         let baseName = sessionName ?? "TransFlow_\(filenameDateString())"
@@ -152,6 +236,14 @@ enum TranscriptionExporter {
     }
 
     // MARK: - Helpers
+
+    /// Format seconds offset as "M:SS" for display.
+    static func formatTimestamp(_ seconds: Double) -> String {
+        let total = Int(max(0, seconds))
+        let m = total / 60
+        let s = total % 60
+        return String(format: "%d:%02d", m, s)
+    }
 
     private static func formatSRTTime(_ interval: TimeInterval) -> String {
         let totalSeconds = max(0, interval)

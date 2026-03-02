@@ -13,6 +13,7 @@ struct MainView: View {
 
     @State private var selectedDestination: SidebarDestination = .transcription
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
+    @State private var pendingHistorySessionID: String?
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -23,6 +24,10 @@ struct MainView: View {
         .navigationSplitViewStyle(.balanced)
         .onReceive(NotificationCenter.default.publisher(for: .navigateToSettings)) { _ in
             selectedDestination = .settings
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .navigateToHistory)) { notification in
+            pendingHistorySessionID = notification.userInfo?["sessionID"] as? String
+            selectedDestination = .history
         }
     }
 
@@ -38,7 +43,7 @@ struct MainView: View {
         case .videoTranscription:
             VideoTranscriptionView()
         case .history:
-            HistoryView()
+            HistoryView(initialSessionID: $pendingHistorySessionID)
         case .settings:
             SettingsView()
         }

@@ -21,7 +21,7 @@ enum SidebarDestination: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .transcription: "waveform"
-        case .videoTranscription: "video.fill"
+        case .videoTranscription: "video"
         case .history: "clock.arrow.circlepath"
         case .settings: "gearshape"
         }

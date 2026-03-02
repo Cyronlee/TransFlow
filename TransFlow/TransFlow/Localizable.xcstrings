@@ -492,6 +492,40 @@
         }
       }
     },
+    "history.badge.live" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Live"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "实时"
+          }
+        }
+      }
+    },
+    "history.badge.video" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Media"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音视频"
+          }
+        }
+      }
+    },
     "history.clear_all" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -594,6 +628,108 @@
         }
       }
     },
+    "history.delete_count %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete (%lld)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除 (%lld)"
+          }
+        }
+      }
+    },
+    "history.delete_selected_confirm_message %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Are you sure you want to delete %lld selected sessions? This cannot be undone."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确定要删除选中的 %lld 个会话吗？此操作无法撤销。"
+          }
+        }
+      }
+    },
+    "history.delete_selected_confirm_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Selected Sessions?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除选中的会话？"
+          }
+        }
+      }
+    },
+    "history.deselect_all" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deselect All"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消全选"
+          }
+        }
+      }
+    },
+    "history.done" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成"
+          }
+        }
+      }
+    },
+    "history.edit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑"
+          }
+        }
+      }
+    },
     "history.empty_description" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -675,6 +811,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "导出为 %@"
+          }
+        }
+      }
+    },
+    "history.filter.all" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部"
+          }
+        }
+      }
+    },
+    "history.filter.live" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Live"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "实时转写"
+          }
+        }
+      }
+    },
+    "history.filter.video" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Media"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音视频转写"
           }
         }
       }
@@ -815,6 +1002,23 @@
         }
       }
     },
+    "history.select_all" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select All"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全选"
+          }
+        }
+      }
+    },
     "history.select_session" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -865,9 +1069,6 @@
           }
         }
       }
-    },
-    "https://hf-mirror.com" : {
-
     },
     "language.en" : {
       "extractionState" : "manual",
@@ -1799,7 +2000,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "历史"
+            "value" : "转写历史"
           }
         }
       }
@@ -1827,13 +2028,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Transcription"
+            "value" : "Live Transcription"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "转写"
+            "value" : "实时转写"
           }
         }
       }
@@ -1844,13 +2045,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Video Transcription"
+            "value" : "Media Transcription"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "视频转写"
+            "value" : "音视频转写"
           }
         }
       }
@@ -1906,36 +2107,19 @@
         }
       }
     },
-    "video.config.speaker_sensitivity" : {
+    "video.config.enable_translation" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Speaker Sensitivity"
+            "value" : "Enable Translation"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "说话人灵敏度"
-          }
-        }
-      }
-    },
-    "video.config.speaker_sensitivity_description" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Higher values detect more distinct speakers"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "值越高，识别出的说话人越多"
+            "value" : "启用翻译"
           }
         }
       }
@@ -1974,23 +2158,6 @@
         }
       }
     },
-    "video.config.enable_translation" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enable Translation"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "启用翻译"
-          }
-        }
-      }
-    },
     "video.config.source_language" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2004,6 +2171,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "转写语言"
+          }
+        }
+      }
+    },
+    "video.config.speaker_sensitivity" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speaker Sensitivity"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "说话人灵敏度"
+          }
+        }
+      }
+    },
+    "video.config.speaker_sensitivity_description" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Higher values detect more distinct speakers"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "值越高，识别出的说话人越多"
           }
         }
       }

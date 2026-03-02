@@ -11,25 +11,17 @@ final class DiarizationModelManager {
     var downloadProgress: Double = 0
     var isDownloading: Bool = false
 
-    /// HuggingFace mirror endpoint. Empty string = official HuggingFace.
-    var hfEndpoint: String {
-        get { UserDefaults.standard.string(forKey: "diarization_hf_endpoint") ?? "" }
-        set {
-            UserDefaults.standard.set(newValue, forKey: "diarization_hf_endpoint")
-            applyHFEndpoint()
-        }
-    }
+    private static let chinaHFMirror = "https://hf-mirror.com"
 
     private init() {
-        applyHFEndpoint()
+        applyRegionBasedEndpoint()
     }
 
-    // MARK: - HF Endpoint
+    // MARK: - HF Endpoint (auto-detect region)
 
-    private func applyHFEndpoint() {
-        let endpoint = hfEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !endpoint.isEmpty {
-            ModelRegistry.baseURL = endpoint
+    private func applyRegionBasedEndpoint() {
+        if Locale.current.region?.identifier == "CN" {
+            ModelRegistry.baseURL = Self.chinaHFMirror
         }
     }
 
@@ -76,7 +68,7 @@ final class DiarizationModelManager {
         modelStatus = .downloading(progress: 0)
 
         do {
-            applyHFEndpoint()
+            applyRegionBasedEndpoint()
 
             // DiarizerModels.downloadIfNeeded() handles caching internally
             _ = try await DiarizerModels.downloadIfNeeded()

@@ -93,7 +93,6 @@ final class AppSettings {
             self.locale = Locale.current
         }
 
-        self.diarizationHFEndpoint = UserDefaults.standard.string(forKey: "diarizationHFEndpoint") ?? ""
         self.diarizationSensitivity = UserDefaults.standard.object(forKey: "diarizationSensitivity") as? Double ?? 0.8
 
         self.videoSourceLanguage = UserDefaults.standard.string(forKey: "videoSourceLanguage") ?? "en"
@@ -115,14 +114,6 @@ final class AppSettings {
     }
 
     // MARK: - Diarization Settings
-
-    /// HuggingFace mirror endpoint for diarization model downloads.
-    /// Empty string = official HuggingFace.
-    var diarizationHFEndpoint: String {
-        didSet {
-            UserDefaults.standard.set(diarizationHFEndpoint, forKey: "diarizationHFEndpoint")
-        }
-    }
 
     /// Speaker separation sensitivity (maps to OfflineDiarizerConfig.clusteringThreshold).
     /// Higher = more aggressive splitting (more speakers). Range: 0.5 – 0.95.

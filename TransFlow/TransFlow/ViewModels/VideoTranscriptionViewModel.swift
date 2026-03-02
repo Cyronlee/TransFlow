@@ -192,19 +192,30 @@ final class VideoTranscriptionViewModel {
                 // Step 7: Save to JSONL
                 let metadata = VideoJSONLMetadata(
                     videoFile: fileURL.lastPathComponent,
+                    originalFilePath: fileURL.path,
                     durationSeconds: videoDuration,
                     sourceLanguage: selectedLanguageId,
                     targetLanguage: enableTranslation ? targetLanguage.minimalIdentifier : nil,
                     diarizationEnabled: enableDiarization
                 )
-                store.createSession(metadata: metadata)
+                let sessionName = store.createSession(metadata: metadata)
                 store.appendSegments(mergedSegments)
 
-                // Done
+                // Done — navigate to history page
                 segments = mergedSegments
                 overallProgress = 1.0
                 state = .completed
                 progressMessage = String(localized: "video.progress.completed")
+
+                NotificationCenter.default.post(
+                    name: .navigateToHistory,
+                    object: nil,
+                    userInfo: ["sessionID": "video_\(sessionName)"]
+                )
+
+                // Reset after a short delay so the page is ready for next use
+                try? await Task.sleep(for: .milliseconds(300))
+                clearFile()
 
             } catch {
                 if !Task.isCancelled {

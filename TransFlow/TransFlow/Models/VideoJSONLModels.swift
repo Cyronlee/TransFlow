@@ -43,6 +43,7 @@ enum VideoJSONLLine: Codable {
 struct VideoJSONLMetadata: Codable {
     let type: VideoJSONLLineType = .videoMetadata
     let videoFile: String
+    let originalFilePath: String?
     let durationSeconds: Double
     let sourceLanguage: String
     let targetLanguage: String?
@@ -53,6 +54,7 @@ struct VideoJSONLMetadata: Codable {
     enum CodingKeys: String, CodingKey {
         case type
         case videoFile = "video_file"
+        case originalFilePath = "original_file_path"
         case durationSeconds = "duration_seconds"
         case sourceLanguage = "source_language"
         case targetLanguage = "target_language"
@@ -63,6 +65,7 @@ struct VideoJSONLMetadata: Codable {
 
     init(
         videoFile: String,
+        originalFilePath: String? = nil,
         durationSeconds: Double,
         sourceLanguage: String,
         targetLanguage: String?,
@@ -71,6 +74,7 @@ struct VideoJSONLMetadata: Codable {
         appVersion: String? = nil
     ) {
         self.videoFile = videoFile
+        self.originalFilePath = originalFilePath
         self.durationSeconds = durationSeconds
         self.sourceLanguage = sourceLanguage
         self.targetLanguage = targetLanguage

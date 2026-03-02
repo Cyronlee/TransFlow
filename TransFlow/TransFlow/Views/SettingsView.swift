@@ -584,44 +584,6 @@ struct SettingsView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-
-            Divider().padding(.leading, 46)
-
-            // HF mirror endpoint
-            HStack(spacing: 8) {
-                Label {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("settings.diarization.hf_endpoint")
-                            .font(.system(size: 13, weight: .regular))
-                        Text("settings.diarization.hf_endpoint_description")
-                            .font(.system(size: 11, weight: .regular))
-                            .foregroundStyle(.tertiary)
-                    }
-                } icon: {
-                    Image(systemName: "server.rack")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 24)
-                }
-
-                Spacer()
-
-                TextField(
-                    "https://hf-mirror.com",
-                    text: Binding(
-                        get: { settings.diarizationHFEndpoint },
-                        set: { newValue in
-                            settings.diarizationHFEndpoint = newValue
-                            diarizationModelManager.hfEndpoint = newValue
-                        }
-                    )
-                )
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 11, design: .monospaced))
-                .frame(maxWidth: 240)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
         }
     }
 

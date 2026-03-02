@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		F47676282F55353B00696E28 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = F4D1A0022F4A0001006D8A00 /* FluidAudio */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		F4C5EE022F3638BE006D8A00 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -65,6 +69,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F47676282F55353B00696E28 /* FluidAudio in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -210,11 +215,11 @@
 			);
 			mainGroup = F4C5EDEB2F3638BD006D8A00;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
-			productRefGroup = F4C5EDF52F3638BD006D8A00 /* Products */;
 			packageReferences = (
 				F4D1A0012F4A0000006D8A00 /* XCRemoteSwiftPackageReference "FluidAudio" */,
 			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = F4C5EDF52F3638BD006D8A00 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
