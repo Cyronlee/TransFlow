@@ -3,6 +3,7 @@ import SwiftUI
 /// Navigation destinations for the sidebar.
 enum SidebarDestination: String, CaseIterable, Identifiable {
     case transcription
+    case videoTranscription
     case history
     case settings
 
@@ -11,6 +12,7 @@ enum SidebarDestination: String, CaseIterable, Identifiable {
     var title: LocalizedStringKey {
         switch self {
         case .transcription: "sidebar.transcription"
+        case .videoTranscription: "sidebar.video_transcription"
         case .history: "sidebar.history"
         case .settings: "sidebar.settings"
         }
@@ -19,6 +21,7 @@ enum SidebarDestination: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .transcription: "waveform"
+        case .videoTranscription: "video.fill"
         case .history: "clock.arrow.circlepath"
         case .settings: "gearshape"
         }

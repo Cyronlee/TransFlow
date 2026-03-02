@@ -125,6 +125,7 @@
 			);
 			name = TransFlow;
 			packageProductDependencies = (
+				F4D1A0022F4A0001006D8A00 /* FluidAudio */,
 			);
 			productName = TransFlow;
 			productReference = F4C5EDF42F3638BD006D8A00 /* TransFlow.app */;
@@ -211,6 +212,9 @@
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
 			productRefGroup = F4C5EDF52F3638BD006D8A00 /* Products */;
+			packageReferences = (
+				F4D1A0012F4A0000006D8A00 /* XCRemoteSwiftPackageReference "FluidAudio" */,
+			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -585,6 +589,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		F4D1A0012F4A0000006D8A00 /* XCRemoteSwiftPackageReference "FluidAudio" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/FluidInference/FluidAudio.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.12.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		F4D1A0022F4A0001006D8A00 /* FluidAudio */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F4D1A0012F4A0000006D8A00 /* XCRemoteSwiftPackageReference "FluidAudio" */;
+			productName = FluidAudio;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = F4C5EDEC2F3638BD006D8A00 /* Project object */;
 }

@@ -93,6 +93,8 @@ final class AppSettings {
             self.locale = Locale.current
         }
 
+        self.diarizationHFEndpoint = UserDefaults.standard.string(forKey: "diarizationHFEndpoint") ?? ""
+
         self.hotkeyToggleTranscription = .empty
         self.hotkeyToggleTranslation = .empty
         self.hotkeyToggleFloatingPreview = .empty
@@ -104,6 +106,16 @@ final class AppSettings {
         self.hotkeyToggleMainWindow = loadHotkey(forKey: "hotkey.toggleMainWindow")
 
         self.isInitialized = true
+    }
+
+    // MARK: - Diarization Settings
+
+    /// HuggingFace mirror endpoint for diarization model downloads.
+    /// Empty string = official HuggingFace.
+    var diarizationHFEndpoint: String {
+        didSet {
+            UserDefaults.standard.set(diarizationHFEndpoint, forKey: "diarizationHFEndpoint")
+        }
     }
 
     // MARK: - Hotkey Bindings

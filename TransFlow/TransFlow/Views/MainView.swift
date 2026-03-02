@@ -35,6 +35,8 @@ struct MainView: View {
                 floatingPreviewManager: floatingPreviewManager,
                 settings: settings
             )
+        case .videoTranscription:
+            VideoTranscriptionView()
         case .history:
             HistoryView()
         case .settings:
