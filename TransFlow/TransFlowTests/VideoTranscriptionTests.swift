@@ -3,25 +3,23 @@ import Foundation
 @testable import TransFlow
 
 /// Integration tests for the video transcription pipeline.
-/// Uses `public/panel-discussion-example.mp4` which contains at least 3 speakers.
+/// Uses extracted audio from the panel discussion example (3+ speakers).
 struct VideoTranscriptionTests {
 
-    /// Path to the test video relative to the project root.
-    private var testVideoURL: URL {
-        let projectRoot = URL(fileURLWithPath: #filePath)
+    /// Path to the test audio file relative to the test source.
+    private var testAudioURL: URL {
+        let testsDir = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // TransFlowTests/
-            .deletingLastPathComponent() // TransFlow/
-            .deletingLastPathComponent() // TransFlow project root
-        return projectRoot
-            .appendingPathComponent("public")
-            .appendingPathComponent("panel-discussion-example.mp4")
+        return testsDir
+            .appendingPathComponent("Resources")
+            .appendingPathComponent("panel-discussion-example.wav")
     }
 
     // MARK: - Audio Extraction
 
     @Test func audioExtractionProducesSamples() async throws {
         let extractor = AudioExtractorService()
-        let url = testVideoURL
+        let url = testAudioURL
 
         let samples = try await extractor.extractAudio(from: url)
 
@@ -29,9 +27,9 @@ struct VideoTranscriptionTests {
         #expect(samples.allSatisfy { $0.isFinite }, "All samples should be finite")
     }
 
-    @Test func audioExtractionStreamDeliversChunks() async throws {
+    @Test @MainActor func audioExtractionStreamDeliversChunks() async throws {
         let extractor = AudioExtractorService()
-        let url = testVideoURL
+        let url = testAudioURL
 
         let (stream, duration) = try await extractor.extractAudioStream(from: url)
 
@@ -39,7 +37,8 @@ struct VideoTranscriptionTests {
 
         var chunkCount = 0
         for await chunk in stream {
-            #expect(!chunk.samples.isEmpty, "Chunk should have samples")
+            let sampleCount = chunk.samples.count
+            #expect(sampleCount > 0, "Chunk should have samples")
             chunkCount += 1
         }
 
@@ -48,20 +47,20 @@ struct VideoTranscriptionTests {
 
     @Test func mediaDurationIsPositive() async throws {
         let extractor = AudioExtractorService()
-        let url = testVideoURL
+        let url = testAudioURL
 
         let duration = try await extractor.mediaDuration(for: url)
 
-        #expect(duration > 1.0, "Video should be longer than 1 second")
+        #expect(duration > 1.0, "Audio should be longer than 1 second")
     }
 
     // MARK: - Diarization (requires model download)
 
     @Test(.disabled("Requires diarization model download — enable manually"))
-    func diarizationIdentifiesMultipleSpeakers() async throws {
+    @MainActor func diarizationIdentifiesMultipleSpeakers() async throws {
         let extractor = AudioExtractorService()
         let diarizationService = DiarizationService()
-        let url = testVideoURL
+        let url = testAudioURL
 
         let samples = try await extractor.extractAudio(from: url)
         let segments = try await diarizationService.performDiarization(audio: samples)
@@ -72,15 +71,18 @@ struct VideoTranscriptionTests {
         #expect(uniqueSpeakers.count >= 3, "Expected at least 3 different speakers, got \(uniqueSpeakers.count): \(uniqueSpeakers)")
 
         for segment in segments {
-            #expect(segment.startTime >= 0, "Start time should be non-negative")
-            #expect(segment.endTime > segment.startTime, "End time should be after start time")
-            #expect(!segment.speakerId.isEmpty, "Speaker ID should not be empty")
+            let start = segment.startTime
+            let end = segment.endTime
+            let speaker = segment.speakerId
+            #expect(start >= 0, "Start time should be non-negative")
+            #expect(end > start, "End time should be after start time")
+            #expect(!speaker.isEmpty, "Speaker ID should not be empty")
         }
     }
 
     // MARK: - Speaker Assignment
 
-    @Test func speakerAssignmentMatchesByOverlap() {
+    @Test @MainActor func speakerAssignmentMatchesByOverlap() {
         let diarizationSegments: [DiarizationService.SpeakerSegment] = [
             .init(speakerId: "Speaker_1", startTime: 0.0, endTime: 5.0),
             .init(speakerId: "Speaker_2", startTime: 5.0, endTime: 10.0),
@@ -113,7 +115,7 @@ struct VideoTranscriptionTests {
         #expect(boundarySpk == "Speaker_1")
     }
 
-    @Test func speakerAssignmentReturnsNilForNoSegments() {
+    @Test @MainActor func speakerAssignmentReturnsNilForNoSegments() {
         let result = DiarizationService.assignSpeaker(
             sentenceStart: 1.0, sentenceEnd: 2.0,
             diarizationSegments: []
@@ -123,7 +125,7 @@ struct VideoTranscriptionTests {
 
     // MARK: - Video JSONL Models
 
-    @Test func videoJSONLRoundTrip() throws {
+    @Test @MainActor func videoJSONLRoundTrip() throws {
         let encoder = JSONEncoder()
         let decoder = JSONDecoder()
 
@@ -173,7 +175,7 @@ struct VideoTranscriptionTests {
 
     // MARK: - Speaker Color
 
-    @Test func speakerColorConsistency() {
+    @Test @MainActor func speakerColorConsistency() {
         let color1 = SpeakerColor.color(for: "Speaker_1")
         let color2 = SpeakerColor.color(for: "Speaker_1")
         #expect(color1 == color2, "Same speaker should get same color")

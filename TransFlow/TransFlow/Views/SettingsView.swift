@@ -26,14 +26,14 @@ struct SettingsView: View {
                     appearanceRow
                 }
 
-                hotkeyAccessibilityHint
-
                 // ── Hotkeys Section ──
                 settingsSection(
                     header: "settings.hotkeys",
                     icon: "keyboard.fill",
                     iconColor: .orange
                 ) {
+                    hotkeyAccessibilityHintRow
+
                     hotkeyRow(
                         label: "settings.hotkey.toggle_transcription",
                         icon: "waveform",
@@ -725,7 +725,7 @@ struct SettingsView: View {
     // MARK: - Hotkey Accessibility Hint
 
     @ViewBuilder
-    private var hotkeyAccessibilityHint: some View {
+    private var hotkeyAccessibilityHintRow: some View {
         if hotkeyManager.isAccessibilityGranted {
             HStack(spacing: 4) {
                 Image(systemName: "checkmark.shield")
@@ -735,9 +735,11 @@ struct SettingsView: View {
                     .font(.system(size: 11, weight: .regular))
                     .foregroundStyle(.tertiary)
             }
-            .padding(.top, 6)
-            .padding(.leading, 4)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
+
+            Divider().padding(.leading, 46)
         } else {
             HStack(spacing: 4) {
                 Image(systemName: "exclamationmark.shield")
@@ -772,9 +774,11 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.top, 6)
-            .padding(.leading, 4)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
+
+            Divider().padding(.leading, 46)
         }
     }
 

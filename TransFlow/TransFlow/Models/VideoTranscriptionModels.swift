@@ -66,3 +66,22 @@ struct SpeakerColor: Sendable {
         return palette[index]
     }
 }
+
+/// Converts a raw speaker ID (e.g. "speaker_0") to a localized display name.
+/// If the ID has already been customized (doesn't match the raw pattern), returns it as-is.
+enum SpeakerDisplayName {
+    static func displayName(for rawId: String) -> String {
+        let lowered = rawId.lowercased()
+        let prefixes = ["speaker_", "speaker "]
+        for prefix in prefixes {
+            if lowered.hasPrefix(prefix) {
+                let numPart = rawId.dropFirst(prefix.count)
+                if let number = Int(numPart) {
+                    let localizedPrefix = String(localized: "speaker.label_prefix")
+                    return "\(localizedPrefix) \(number + 1)"
+                }
+            }
+        }
+        return rawId
+    }
+}

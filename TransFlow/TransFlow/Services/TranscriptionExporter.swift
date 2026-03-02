@@ -104,7 +104,7 @@ enum TranscriptionExporter {
             lines.append("\(index + 1)")
             lines.append("\(formatSRTTime(entry.startTime)) --> \(formatSRTTime(entry.endTime))")
             if let speaker = entry.speakerId {
-                lines.append("[\(speaker.replacingOccurrences(of: "_", with: " "))] \(entry.originalText)")
+                lines.append("[\(SpeakerDisplayName.displayName(for: speaker))] \(entry.originalText)")
             } else {
                 lines.append(entry.originalText)
             }
@@ -171,7 +171,7 @@ enum TranscriptionExporter {
             let timeStr = formatTimestamp(entry.startTime)
             var line = "**[\(timeStr)]**"
             if let speaker = entry.speakerId {
-                line += " _\(speaker.replacingOccurrences(of: "_", with: " "))_:"
+                line += " _\(SpeakerDisplayName.displayName(for: speaker))_:"
             }
             line += " \(entry.originalText)"
             lines.append(line)

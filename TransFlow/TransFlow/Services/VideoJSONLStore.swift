@@ -181,6 +181,45 @@ final class VideoJSONLStore {
         }
     }
 
+    /// Rename all occurrences of a speaker ID in a session file.
+    @discardableResult
+    func renameSpeaker(in url: URL, from oldId: String, to newId: String) -> Bool {
+        let allLines = readAllLines(from: url)
+        var newLines: [String] = []
+        for line in allLines {
+            switch line {
+            case .videoMetadata(let meta):
+                if let encoded = encodeLine(.videoMetadata(meta)) {
+                    newLines.append(encoded)
+                }
+            case .content(let entry):
+                let updatedEntry: VideoJSONLContentEntry
+                if entry.speakerId == oldId {
+                    updatedEntry = VideoJSONLContentEntry(
+                        startTime: entry.startTime,
+                        endTime: entry.endTime,
+                        originalText: entry.originalText,
+                        translatedText: entry.translatedText,
+                        speakerId: newId
+                    )
+                } else {
+                    updatedEntry = entry
+                }
+                if let encoded = encodeLine(.content(updatedEntry)) {
+                    newLines.append(encoded)
+                }
+            }
+        }
+
+        let content = newLines.joined(separator: "\n")
+        do {
+            try content.write(to: url, atomically: true, encoding: .utf8)
+            return true
+        } catch {
+            return false
+        }
+    }
+
     // MARK: - Helpers
 
     static func generateDefaultName() -> String {

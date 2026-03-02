@@ -515,13 +515,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Media"
+            "value" : "Video"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "音视频"
+            "value" : "视频"
           }
         }
       }
@@ -855,13 +855,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Media"
+            "value" : "Video"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "音视频转写"
+            "value" : "视频转写"
           }
         }
       }
@@ -2045,13 +2045,64 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Media Transcription"
+            "value" : "Video Transcription"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "音视频转写"
+            "value" : "视频转写"
+          }
+        }
+      }
+    },
+    "speaker.label_prefix" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speaker"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "说话人"
+          }
+        }
+      }
+    },
+    "speaker.rename_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rename Speaker"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重命名说话人"
+          }
+        }
+      }
+    },
+    "speaker.rename_prompt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a new name for this speaker:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入该说话人的新名称："
           }
         }
       }

@@ -451,6 +451,7 @@ struct VideoSegmentRow: View {
     let segment: VideoTranscriptionSegment
     var isActive: Bool = false
     var onTap: (() -> Void)? = nil
+    var onSpeakerTap: ((String) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -460,7 +461,6 @@ struct VideoSegmentRow: View {
                 .padding(.vertical, 8)
 
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                // Timestamp badge
                 Text(timeString)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .foregroundStyle(AnyShapeStyle(Color.accentColor))
@@ -477,7 +477,6 @@ struct VideoSegmentRow: View {
                         onTap?()
                     }
 
-                // Speaker badge
                 if let speakerId = segment.speakerId {
                     speakerBadge(speakerId)
                 }
@@ -515,7 +514,7 @@ struct VideoSegmentRow: View {
 
     private func speakerBadge(_ speakerId: String) -> some View {
         let colorHex = SpeakerColor.color(for: speakerId)
-        let displayName = speakerId.replacingOccurrences(of: "_", with: " ")
+        let displayName = SpeakerDisplayName.displayName(for: speakerId)
 
         return Text(displayName)
             .font(.system(size: 10, weight: .semibold))
@@ -526,6 +525,14 @@ struct VideoSegmentRow: View {
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(Color(hex: colorHex).opacity(0.12))
             )
+            .onHover { inside in
+                if onSpeakerTap != nil {
+                    if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                }
+            }
+            .onTapGesture {
+                onSpeakerTap?(speakerId)
+            }
     }
 
     private var timeString: String {

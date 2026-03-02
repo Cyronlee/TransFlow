@@ -34,7 +34,7 @@ struct HistoryView: View {
                         videoStore: videoStore,
                         onRefresh: refreshSessions
                     )
-                    .frame(minWidth: 220, idealWidth: 260, maxWidth: 360)
+                    .frame(minWidth: 220, idealWidth: 280, maxWidth: 400)
 
                     if let selected = allItems.first(where: { $0.id == selectedItemID }) {
                         switch selected.type {
@@ -174,46 +174,41 @@ struct SessionListView: View {
     // MARK: - List Header
 
     private var listHeader: some View {
-        VStack(spacing: 8) {
-            HStack {
-                Text("history.transcriptions")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-
-                Spacer()
-
-                Text("\(items.count)")
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(
-                        Capsule().fill(.quaternary.opacity(0.4))
-                    )
-
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        isEditMode.toggle()
-                        if !isEditMode {
-                            selectedForDeletion.removeAll()
-                        }
-                    }
-                } label: {
-                    Text(isEditMode ? "history.done" : "history.edit")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(isEditMode ? Color.accentColor : .secondary)
-                }
-                .buttonStyle(.plain)
-            }
-
-            Picker("", selection: $filter) {
+        HStack(spacing: 8) {
+            Picker(selection: $filter) {
                 ForEach(HistoryFilter.allCases) { f in
                     Text(f.displayName).tag(f)
                 }
+            } label: {
+                EmptyView()
             }
-            .pickerStyle(.segmented)
-            .controlSize(.small)
+            .pickerStyle(.menu)
+            .fixedSize()
+
+            Text("\(items.count)")
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(.tertiary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(
+                    Capsule().fill(.quaternary.opacity(0.4))
+                )
+
+            Spacer()
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isEditMode.toggle()
+                    if !isEditMode {
+                        selectedForDeletion.removeAll()
+                    }
+                }
+            } label: {
+                Text(isEditMode ? "history.done" : "history.edit")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(isEditMode ? Color.accentColor : .secondary)
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -403,13 +398,13 @@ struct HistoryRowView: View {
                     .onExitCommand { onCancelRename() }
             } else {
                 HStack(spacing: 6) {
+                    typeBadge
+
                     Text(item.name)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                         .truncationMode(.middle)
-
-                    typeBadge
                 }
             }
 
@@ -454,16 +449,15 @@ struct HistoryRowView: View {
     }
 
     private var typeBadge: some View {
-        Text(item.type == .live ? "history.badge.live" : "history.badge.video")
+        let color: Color = item.type == .live ? .orange : .blue
+        return Text(item.type == .live ? "history.badge.live" : "history.badge.video")
             .font(.system(size: 9, weight: .semibold))
-            .foregroundStyle(item.type == .live ? .green : .blue)
+            .foregroundStyle(color)
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
             .background(
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .fill(item.type == .live
-                          ? Color.green.opacity(0.12)
-                          : Color.blue.opacity(0.12))
+                    .fill(color.opacity(0.12))
             )
     }
 
@@ -506,14 +500,14 @@ struct SessionDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            detailToolbar
+
+            Divider()
+
             if hasRecording {
                 AudioPlayerBarView(player: audioPlayer)
                 Divider()
             }
-
-            detailToolbar
-
-            Divider()
 
             if entries.isEmpty {
                 VStack(spacing: 12) {
@@ -874,10 +868,15 @@ final class VideoHistoryPlayerModel {
     var segments: [VideoTranscriptionSegment] = []
     private var timeObserverToken: Any?
 
+    private var currentURL: URL?
+
     func setup(url: URL, segments: [VideoTranscriptionSegment]) {
-        cleanup()
         self.segments = segments
-        player = AVPlayer(url: url)
+        guard url != currentURL else { return }
+        cleanup()
+        currentURL = url
+        let item = AVPlayerItem(url: url)
+        player = AVPlayer(playerItem: item)
         startObservation()
     }
 
@@ -898,6 +897,7 @@ final class VideoHistoryPlayerModel {
         player?.pause()
         player = nil
         activeSegmentIndex = nil
+        currentURL = nil
     }
 
     private func startObservation() {
@@ -932,6 +932,11 @@ struct VideoSessionDetailView: View {
     @State private var showTimestamps = true
     @State private var showTranslation = true
     @State private var copyFeedback = false
+    @State private var renamingSpeakerId: String?
+    @State private var speakerRenameText: String = ""
+    @State private var showSpeakerRenameAlert = false
+    @State private var videoPlayerHeight: CGFloat = 280
+    @GestureState private var dragOffset: CGFloat = 0
 
     private var sourceFileURL: URL? {
         if let path = session.originalFilePath {
@@ -950,18 +955,23 @@ struct VideoSessionDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let url = sourceFileURL {
-                if isVideo {
-                    VideoPlayer(player: playerModel.player)
-                        .frame(minHeight: 200, idealHeight: 280, maxHeight: 400)
-                } else {
-                    audioPlayerHeader(url: url)
-                }
-            }
-
             detailToolbar
 
             Divider()
+
+            if let url = sourceFileURL {
+                if isVideo {
+                    VideoPlayer(player: playerModel.player)
+                        .frame(minWidth: 300, maxWidth: .infinity)
+                        .frame(height: max(150, min(videoPlayerHeight + dragOffset, 600)))
+                        .clipped()
+
+                    videoResizeHandle
+                } else {
+                    audioPlayerHeader(url: url)
+                    Divider()
+                }
+            }
 
             if entries.isEmpty {
                 VStack(spacing: 12) {
@@ -985,6 +995,58 @@ struct VideoSessionDetailView: View {
         .onAppear { loadSession() }
         .onChange(of: session.id) { loadSession() }
         .onDisappear { playerModel.cleanup() }
+        .alert("speaker.rename_title", isPresented: $showSpeakerRenameAlert) {
+            TextField("", text: $speakerRenameText)
+            Button("session.cancel", role: .cancel) {
+                renamingSpeakerId = nil
+            }
+            Button("history.done") {
+                commitSpeakerRename()
+            }
+        } message: {
+            Text("speaker.rename_prompt")
+        }
+    }
+
+    private var videoResizeHandle: some View {
+        Divider()
+            .overlay(
+                Color.clear
+                    .frame(height: 8)
+                    .contentShape(Rectangle())
+            )
+            .onHover { inside in
+                if inside { NSCursor.resizeUpDown.push() } else { NSCursor.pop() }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                    .updating($dragOffset) { value, state, _ in
+                        state = value.translation.height
+                    }
+                    .onEnded { value in
+                        let final = videoPlayerHeight + value.translation.height
+                        videoPlayerHeight = min(max(final, 150), 600)
+                    }
+            )
+    }
+
+    private func beginSpeakerRename(_ speakerId: String) {
+        renamingSpeakerId = speakerId
+        speakerRenameText = SpeakerDisplayName.displayName(for: speakerId)
+        showSpeakerRenameAlert = true
+    }
+
+    private func commitSpeakerRename() {
+        guard let oldId = renamingSpeakerId else { return }
+        let newName = speakerRenameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !newName.isEmpty, newName != SpeakerDisplayName.displayName(for: oldId) else {
+            renamingSpeakerId = nil
+            return
+        }
+
+        store.renameSpeaker(in: session.url, from: oldId, to: newName)
+        renamingSpeakerId = nil
+        loadSession()
     }
 
     private func loadSession() {
@@ -999,7 +1061,9 @@ struct VideoSessionDetailView: View {
             )
         }
         if let url = sourceFileURL {
-            playerModel.setup(url: url, segments: segments)
+            DispatchQueue.main.async {
+                playerModel.setup(url: url, segments: segments)
+            }
         } else {
             playerModel.segments = segments
         }
@@ -1058,6 +1122,9 @@ struct VideoSessionDetailView: View {
                             isActive: playerModel.activeSegmentIndex == index,
                             onTap: {
                                 playerModel.seekToSegment(at: index)
+                            },
+                            onSpeakerTap: { speakerId in
+                                beginSpeakerRename(speakerId)
                             }
                         )
                         .id(index)
@@ -1337,7 +1404,7 @@ struct VideoSessionDetailView: View {
                 line += "**[\(TranscriptionExporter.formatTimestamp(entry.startTime))]** "
             }
             if let speaker = entry.speakerId {
-                line += "_\(speaker.replacingOccurrences(of: "_", with: " "))_: "
+                line += "_\(SpeakerDisplayName.displayName(for: speaker))_: "
             }
             line += entry.originalText
             lines.append(line)
