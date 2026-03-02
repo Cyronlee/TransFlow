@@ -441,6 +441,40 @@
         }
       }
     },
+    "floating_preview.decrease_font" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decrease font size"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "减小字号"
+          }
+        }
+      }
+    },
+    "floating_preview.increase_font" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Increase font size"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "增大字号"
+          }
+        }
+      }
+    },
     "floating_preview.pin" : {
       "extractionState" : "manual",
       "localizations" : {

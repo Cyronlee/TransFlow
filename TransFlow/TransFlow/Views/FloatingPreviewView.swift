@@ -10,11 +10,12 @@ struct FloatingPreviewView: View {
     private let maxFinalizedSentenceCount = 4
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        ZStack {
             captionCard
             controlOverlay
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         }
-        .padding(12)
+        .padding(2)
         .frame(minWidth: 340, idealWidth: 390, minHeight: 96, alignment: .topLeading)
         .glassEffect(.regular, in: .rect(cornerRadius: 14))
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -34,7 +35,7 @@ struct FloatingPreviewView: View {
                     }
 
                     Color.clear
-                        .frame(height: 8)
+                        .frame(height: 0)
                         .id(captionBottomAnchor)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -49,16 +50,21 @@ struct FloatingPreviewView: View {
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.vertical, 2)
     }
 
     private var controlOverlay: some View {
-        HStack(spacing: 8) {
-            pinButton
-            closeButton
+        VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                pinButton
+                closeButton
+            }
+            HStack(spacing: 6) {
+                fontDecreaseButton
+                fontIncreaseButton
+            }
         }
-        // Keep controls out of the titlebar drag zone for reliable clicks.
-        .padding(.top, 18)
+        .padding(.top, 10)
         .padding(.trailing, 10)
         .opacity(shouldShowControls ? 1 : 0)
         .allowsHitTesting(shouldShowControls)
@@ -96,17 +102,56 @@ struct FloatingPreviewView: View {
         .accessibilityLabel(Text("floating_preview.close"))
     }
 
+    private var fontDecreaseButton: some View {
+        Button {
+            AppSettings.shared.adjustFloatingPanelFontSize(by: -1)
+        } label: {
+            Image(systemName: "textformat.size.smaller")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 24, height: 24)
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular, in: .circle)
+        .help(Text("floating_preview.decrease_font"))
+        .accessibilityLabel(Text("floating_preview.decrease_font"))
+    }
+
+    private var fontIncreaseButton: some View {
+        Button {
+            AppSettings.shared.adjustFloatingPanelFontSize(by: 1)
+        } label: {
+            Image(systemName: "textformat.size.larger")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 24, height: 24)
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular, in: .circle)
+        .help(Text("floating_preview.increase_font"))
+        .accessibilityLabel(Text("floating_preview.increase_font"))
+    }
+
+    private var sourceFontSize: CGFloat {
+        AppSettings.shared.floatingPanelFontSize
+    }
+
+    private var translationFontSize: CGFloat {
+        AppSettings.shared.floatingPanelTranslationFontSize
+    }
+
     @ViewBuilder
     private func captionLineView(_ line: CaptionLine) -> some View {
+        let fontSize = line.kind == .source ? sourceFontSize : translationFontSize
         if line.isPartial {
             Text(line.text)
-                .font(line.kind == .source ? .system(size: 15, weight: .regular) : .system(size: 12, weight: .regular))
+                .font(.system(size: fontSize, weight: .regular))
                 .foregroundStyle(lineForegroundStyle(for: line.kind))
                 .italic()
                 .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             Text(line.text)
-                .font(line.kind == .source ? .system(size: 15, weight: .regular) : .system(size: 12, weight: .regular))
+                .font(.system(size: fontSize, weight: .regular))
                 .foregroundStyle(lineForegroundStyle(for: line.kind))
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

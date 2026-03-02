@@ -77,6 +77,18 @@ final class AppSettings {
     /// The resolved locale used for SwiftUI environment.
     var locale: Locale
 
+    /// Font size for source text in the floating preview panel.
+    var floatingPanelFontSize: CGFloat {
+        didSet {
+            UserDefaults.standard.set(Double(floatingPanelFontSize), forKey: "floatingPanelFontSize")
+        }
+    }
+
+    /// Translation text is rendered proportionally smaller.
+    var floatingPanelTranslationFontSize: CGFloat {
+        (floatingPanelFontSize * 0.8).rounded()
+    }
+
     private var isInitialized = false
 
     private init() {
@@ -99,6 +111,10 @@ final class AppSettings {
         self.videoEnableTranslation = UserDefaults.standard.bool(forKey: "videoEnableTranslation")
         self.videoTargetLanguage = UserDefaults.standard.string(forKey: "videoTargetLanguage") ?? "zh-Hans"
         self.videoEnableDiarization = UserDefaults.standard.object(forKey: "videoEnableDiarization") as? Bool ?? true
+        let storedFontSize = UserDefaults.standard.double(forKey: "floatingPanelFontSize")
+        self.floatingPanelFontSize = storedFontSize > 0
+            ? CGFloat(storedFontSize)
+            : Self.recommendedFloatingPanelFontSize()
 
         self.hotkeyToggleTranscription = .empty
         self.hotkeyToggleTranslation = .empty
@@ -163,6 +179,26 @@ final class AppSettings {
             saveHotkey(hotkeyToggleMainWindow, forKey: "hotkey.toggleMainWindow")
             if isInitialized { GlobalHotkeyManager.shared.refreshCachedBindings() }
         }
+    }
+
+    // MARK: - Floating Panel Font Size
+
+    static func recommendedFloatingPanelFontSize() -> CGFloat {
+        guard let screen = NSScreen.main else { return 15 }
+        let scale = screen.backingScaleFactor
+        let logicalHeight = screen.frame.height
+
+        if scale < 1.5 && logicalHeight > 1200 {
+            return 20
+        } else if scale < 1.5 {
+            return 17
+        }
+        return 15
+    }
+
+    func adjustFloatingPanelFontSize(by delta: CGFloat) {
+        let newSize = floatingPanelFontSize + delta
+        floatingPanelFontSize = min(max(newSize, 10), 28)
     }
 
     private func applyLanguage() {
