@@ -80,6 +80,7 @@ struct FloatingPreviewView: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(panelManager.isPinned ? Color.accentColor : Color.secondary)
                 .frame(width: 24, height: 24)
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .glassEffect(.regular, in: .circle)
@@ -95,6 +96,7 @@ struct FloatingPreviewView: View {
                 .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(.secondary)
                 .frame(width: 24, height: 24)
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .glassEffect(.regular, in: .circle)
@@ -110,6 +112,7 @@ struct FloatingPreviewView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .frame(width: 24, height: 24)
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .glassEffect(.regular, in: .circle)
@@ -125,6 +128,7 @@ struct FloatingPreviewView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .frame(width: 24, height: 24)
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .glassEffect(.regular, in: .circle)
