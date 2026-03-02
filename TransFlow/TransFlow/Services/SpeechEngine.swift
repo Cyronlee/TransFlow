@@ -163,6 +163,8 @@ final class SpeechEngine: Sendable {
 
     /// Convert Float32 samples to AnalyzerInput (with format conversion).
     /// Returns the input and the number of output frames written.
+    /// Allocates a fresh output buffer each call so the AnalyzerInput's backing data
+    /// is never overwritten before the analyzer consumes it (critical for faster-than-real-time input).
     private static func convertToAnalyzerInput(
         samples: [Float],
         converter: AVAudioConverter?,
@@ -172,16 +174,20 @@ final class SpeechEngine: Sendable {
         guard let pcmBuffer = createPCMBuffer(from: samples) else { return nil }
 
         if let converter, let reusableBuffer {
-            reusableBuffer.frameLength = 0
+            let outputBuffer = AVAudioPCMBuffer(
+                pcmFormat: reusableBuffer.format,
+                frameCapacity: reusableBuffer.frameCapacity
+            )!
+            outputBuffer.frameLength = 0
             var error: NSError?
             nonisolated(unsafe) var consumed = false
             nonisolated(unsafe) let capturedBuffer = pcmBuffer
-            converter.convert(to: reusableBuffer, error: &error) { _, outStatus in
+            converter.convert(to: outputBuffer, error: &error) { _, outStatus in
                 if consumed { outStatus.pointee = .noDataNow; return nil }
                 consumed = true; outStatus.pointee = .haveData; return capturedBuffer
             }
-            guard error == nil, reusableBuffer.frameLength > 0 else { return nil }
-            return (AnalyzerInput(buffer: reusableBuffer, bufferStartTime: bufferStartTime), reusableBuffer.frameLength)
+            guard error == nil, outputBuffer.frameLength > 0 else { return nil }
+            return (AnalyzerInput(buffer: outputBuffer, bufferStartTime: bufferStartTime), outputBuffer.frameLength)
         } else {
             return (AnalyzerInput(buffer: pcmBuffer, bufferStartTime: bufferStartTime), pcmBuffer.frameLength)
         }

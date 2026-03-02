@@ -11,7 +11,7 @@
 - **SpeechAnalyzer 类**（核心分析器，管理会话和模块）：  
   https://developer.apple.com/documentation/speech/speechanalyzer
 
-- **SpeechTranscriber 类**（语音转文字转录模块，支持日常对话等场景）：  
+- **SpeechTranscriber 类**（语音转文字转写模块，支持日常对话等场景）：  
   https://developer.apple.com/documentation/speech/speechtranscriber
 
 - **AssetInventory 类**（管理模型资产的下载和安装，用户首次使用非预装语言时会涉及这个）：  

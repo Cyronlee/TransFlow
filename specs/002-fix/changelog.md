@@ -1,4 +1,4 @@
-## 问题 1: App 音频源无法转录
+## 问题 1: App 音频源无法转写
 
 **根本原因:** `AppAudioCaptureService` 有三个关键缺陷:
 
@@ -26,11 +26,11 @@
 
 **修复内容:**
 
-1. **添加了语言映射方法** `TranslationService.translationLanguage(from:)` — 将转录使用的 `Locale`（如 `"en-US"`, `"zh-Hans-CN"`）映射为 Translation 框架需要的 `Locale.Language`（如 `"en"`, `"zh-Hans"`）。特别处理了中文的简繁体（`zh-Hans` / `zh-Hant`），其他语言则去掉地区后缀只保留语言代码。
+1. **添加了语言映射方法** `TranslationService.translationLanguage(from:)` — 将转写使用的 `Locale`（如 `"en-US"`, `"zh-Hans-CN"`）映射为 Translation 框架需要的 `Locale.Language`（如 `"en"`, `"zh-Hans"`）。特别处理了中文的简繁体（`zh-Hans` / `zh-Hant`），其他语言则去掉地区后缀只保留语言代码。
 
-2. **添加了 `updateSourceLanguage(from:)` 方法** — 在以下时机自动同步转录语言到翻译源语言：
+2. **添加了 `updateSourceLanguage(from:)` 方法** — 在以下时机自动同步转写语言到翻译源语言：
    - 初始化时（`initialize()`）
-   - 切换转录语言时（`switchLanguage(to:)`）
+   - 切换转写语言时（`switchLanguage(to:)`）
    - 开启翻译开关时（`onChange` of `isEnabled`）
 
 3. **`updateConfiguration()` 不再接受 `nil` 源语言** — 如果 `sourceLanguage` 为 `nil`，直接不创建 session，避免触发自动检测弹窗。`source` 参数现在始终传入明确的语言值。

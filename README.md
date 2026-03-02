@@ -1,7 +1,7 @@
 <div align="center">
   <img src="public/logo.png" alt="TransFlow Logo" width="128" height="128">
   <h1>TransFlow</h1>
-  <p><strong>macOS 实时语音转录与翻译工具，完全离线，注重隐私</strong></p>
+  <p><strong>macOS 实时语音转写与翻译工具，完全离线，注重隐私</strong></p>
 
   [![GitHub release](https://img.shields.io/github/v/release/Cyronlee/TransFlow?style=flat-square)](https://github.com/Cyronlee/TransFlow/releases)
   [![License](https://img.shields.io/github/license/Cyronlee/TransFlow?style=flat-square)](LICENSE)
@@ -27,11 +27,11 @@
 
 ## ✨ 功能特性
 
-- **🎙️ 实时语音转录** — 基于 Apple Speech 框架，利用 Neural Engine 硬件加速，转录准确率高，适用于会议、讲座、对话等长时间音频场景
-- **🌐 实时翻译** — 使用 Apple Translation 框架，转录结果实时翻译，支持 macOS 内置的所有语言
-- **🔊 应用音频捕获** — 通过 ScreenCaptureKit 捕获其他应用的音频进行转录，轻松转录在线会议和视频
+- **🎙️ 实时语音转写** — 基于 Apple Speech 框架，利用 Neural Engine 硬件加速，转写准确率高，适用于会议、讲座、对话等长时间音频场景
+- **🌐 实时翻译** — 使用 Apple Translation 框架，转写结果实时翻译，支持 macOS 内置的所有语言
+- **🔊 应用音频捕获** — 通过 ScreenCaptureKit 捕获其他应用的音频进行转写，轻松转写在线会议和视频
 - **🔒 隐私优先** — 语音识别与翻译完全在设备端运行（on-device），无需联网
-- **📜 历史记录** — 自动保存转录会话，支持浏览、预览、重命名和删除历史记录
+- **📜 历史记录** — 自动保存转写会话，支持浏览、预览、重命名和删除历史记录
 - **📤 导出支持** — 支持导出为 SRT 字幕和 Markdown 格式
 - **⚙️ 设置与定制** — 配置语言偏好和外观模式（浅色/深色/跟随系统）
 - **🪶 轻量小巧** — 应用体积不到 800KB，小而美，即装即用
@@ -75,15 +75,15 @@ open TransFlow/TransFlow.xcodeproj
 
 1. 启动 TransFlow，授予麦克风权限
 2. 选择音频来源（麦克风或应用音频）
-3. 选择转录语言和翻译目标语言
-4. 点击开始按钮，实时查看转录和翻译结果
+3. 选择转写语言和翻译目标语言
+4. 点击开始按钮，实时查看转写和翻译结果
 5. 会话自动保存，可在历史记录中回顾
 
 ## ⌨️ 快捷键
 
 | 快捷键 | 功能 |
 |--------|------|
-| `⌘ K` | 清除当前转录 |
+| `⌘ K` | 清除当前转写 |
 | `⌘ ⇧ E` | 导出为 SRT 字幕 |
 
 ## 🗺️ Roadmap

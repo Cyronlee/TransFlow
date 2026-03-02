@@ -1,11 +1,11 @@
-你是一名资深 macOS App 开发者。请从零构建一个名为 **TransFlow** 的 macOS 实时语音转录应用。
+你是一名资深 macOS App 开发者。请从零构建一个名为 **TransFlow** 的 macOS 实时语音转写应用。
 
 ---
 
 ## 技术栈
 
 - **macOS 26.0 (Tahoe)**，Swift 6.0，严格并发安全
-- **转录**：原生 Speech 框架（`SpeechAnalyzer` + `SpeechTranscriber` + `AssetInventory`）— 不使用任何第三方 ASR 框架，不使用旧版 SFSpeechRecognizer
+- **转写**：原生 Speech 框架（`SpeechAnalyzer` + `SpeechTranscriber` + `AssetInventory`）— 不使用任何第三方 ASR 框架，不使用旧版 SFSpeechRecognizer
 - **翻译**：原生 Translation 框架
 - **音频捕获**：AVAudioEngine（麦克风）+ ScreenCaptureKit（App 音频）
 - **UI**：SwiftUI，macOS Tahoe Liquid Glass 风格
@@ -16,15 +16,15 @@
 
 ## 功能概述
 
-1. **实时转录**：麦克风或指定 App 的音频 → SpeechAnalyzer → 实时预览 + 自然断句
+1. **实时转写**：麦克风或指定 App 的音频 → SpeechAnalyzer → 实时预览 + 自然断句
 2. **多语言**：通过 `SpeechTranscriber.supportedLocales` 动态获取所有支持的语言，用户可切换
 3. **音频源切换**：麦克风 / App 音频（ScreenCaptureKit 捕获指定应用音频输出）
 4. **实时翻译**：使用 Apple Translation 框架，对已完成句子和 partial 文本实时翻译
-5. **SRT 导出**：将转录历史（含翻译）导出为 SRT 字幕文件
+5. **SRT 导出**：将转写历史（含翻译）导出为 SRT 字幕文件
 
 ---
 
-## 核心：SpeechEngine 转录引擎
+## 核心：SpeechEngine 转写引擎
 
 这是整个应用最核心的部分。完整实现如下：
 
@@ -32,7 +32,7 @@
 import Speech
 import AVFoundation
 
-/// 使用 macOS 26.0 SpeechAnalyzer + SpeechTranscriber 实现实时转录。
+/// 使用 macOS 26.0 SpeechAnalyzer + SpeechTranscriber 实现实时转写。
 /// 接受 AudioChunk 流（16kHz mono Float32），输出 TranscriptionEvent 流。
 final class SpeechEngine: Sendable {
     private let locale: Locale
@@ -211,7 +211,7 @@ final class SpeechEngine: Sendable {
 
 | API | 说明 |
 |-----|------|
-| `SpeechTranscriber(locale:transcriptionOptions:reportingOptions:attributeOptions:)` | 创建转录器 |
+| `SpeechTranscriber(locale:transcriptionOptions:reportingOptions:attributeOptions:)` | 创建转写器 |
 | `.fastResults` | 低延迟优先 |
 | `.volatileResults` | 输出实时预览（非 final）结果 |
 | `result.isFinal` | true=句子确定，false=volatile 预览 |
@@ -271,7 +271,7 @@ final class SpeechEngine: Sendable {
 3. **开始监听**：
    - 根据音频源启动 AudioCaptureService 或 AppAudioCaptureService
    - 创建 SpeechEngine → `processStream(audioStream)`
-   - fork 音频流：一路给引擎转录，一路更新 UI 音量显示
+   - fork 音频流：一路给引擎转写，一路更新 UI 音量显示
    - 消费 `TranscriptionEvent` 流更新 UI（partial → 预览区，sentenceComplete → 历史区）
 4. **停止监听**：停止音频捕获，flush 剩余 partial text 为最终句子
 5. **翻译联动**：sentenceComplete 时自动翻译，partial text debounce 翻译
@@ -285,7 +285,7 @@ listeningState: ListeningState      // idle/starting/active/stopping
 audioLevel: Float                   // 当前音量 0-1
 audioLevelHistory: [Float]          // 波形历史
 audioSource: AudioSourceType        // 麦克风 or App 音频
-selectedLanguage                    // 当前转录语言
+selectedLanguage                    // 当前转写语言
 isTranslationEnabled: Bool          // 翻译开关
 translationTargetLanguage           // 翻译目标语言
 currentPartialTranslation: String   // partial 文本的翻译
@@ -299,7 +299,7 @@ errorMessage: String?               // 错误提示
 ```
 ┌─────────────────────────────────────────┐
 │                                         │
-│           转录区域（占满上方）              │
+│           转写区域（占满上方）              │
 │                                         │
 │   [14:32:05] This is a sentence.        │
 │              这是一个句子。               │
@@ -318,13 +318,13 @@ errorMessage: String?               // 错误提示
 
 ### 布局说明
 
-- **上方转录区域**占据窗口绝大部分空间（ScrollView + 自动滚动到底部）
+- **上方转写区域**占据窗口绝大部分空间（ScrollView + 自动滚动到底部）
   - 已完成句子：时间戳 + 原文 + 翻译文本（如启用）
   - 底部 volatile 预览区：灰色/斜体，显示正在说的内容
 - **底部控制栏**合并为一行，包含：
   - 开始/停止监听按钮
   - 音频源切换（麦克风 / App 音频选择器）
-  - 转录语言选择器
+  - 转写语言选择器
   - 翻译开关 + 目标语言选择器
   - 小型音量波形可视化
   - 延迟显示
