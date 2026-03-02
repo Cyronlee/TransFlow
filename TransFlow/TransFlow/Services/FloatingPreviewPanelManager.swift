@@ -78,7 +78,7 @@ final class FloatingPreviewPanelManager: NSObject, NSWindowDelegate {
         ]
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 200),
+            contentRect: NSRect(x: 0, y: 0, width: 380, height: 160),
             styleMask: styleMask,
             backing: .buffered,
             defer: true
