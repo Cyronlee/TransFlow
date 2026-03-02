@@ -33,6 +33,6 @@
   - `history.delete_confirm_title` — "Delete Session" / "删除会话"
   - `history.delete_confirm_message %@` — parametrized delete confirmation
   - `history.select_session` — "Select a session to preview" / "选择一个会话来预览"
-  - `history.no_entries` — "No transcription entries" / "暂无转录条目"
+  - `history.no_entries` — "No transcription entries" / "暂无转写条目"
   - `history.export` — "Export" / "导出"
   - `history.export_format %@` — parametrized "Export as %@" / "导出为 %@"

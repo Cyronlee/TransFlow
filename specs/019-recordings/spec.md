@@ -1,16 +1,16 @@
-# 019 转录同时录音
+# 019 转写同时录音
 
 ## 目标
 
-在转录的同时录制音频，用于后期回放、精校准和说话人识别等场景。
+在转写的同时录制音频，用于后期回放、精校准和说话人识别等场景。
 
 ## 功能设计
 
 ### 录音
 
-- 每次点击开始转录时，自动开始录音
-- 每次点击停止转录时，自动停止录音并保存
-- 同一个转录 session（JSONL 文件）可以包含多段录音
+- 每次点击开始转写时，自动开始录音
+- 每次点击停止转写时，自动停止录音并保存
+- 同一个转写 session（JSONL 文件）可以包含多段录音
 - 录音文件格式为 M4A (AAC)，16kHz 单声道
 - 录音文件命名：`rec_<yyyy-MM-dd_HH-mm-ss>.m4a`（每次开始录音生成唯一文件名）
 - 录音保存路径：`~/Library/Application Support/<bundleID>/recordings/`
@@ -47,7 +47,7 @@
 
 ```
 AudioChunk stream (16kHz mono Float32)
-  ├─ engineContinuation  → SpeechEngine (转录)
+  ├─ engineContinuation  → SpeechEngine (转写)
   ├─ levelContinuation   → UI 音量指示
   └─ recordingContinuation → AudioRecordingService (写入 M4A)
 ```

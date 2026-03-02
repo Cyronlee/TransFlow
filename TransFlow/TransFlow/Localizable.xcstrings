@@ -274,7 +274,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "开始转录"
+            "value" : "开始转写"
           }
         }
       }
@@ -325,7 +325,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "停止转录"
+            "value" : "停止转写"
           }
         }
       }
@@ -359,7 +359,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "转录语言"
+            "value" : "转写语言"
           }
         }
       }
@@ -410,7 +410,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "按下开始按钮来启动转录"
+            "value" : "按下开始按钮来启动转写"
           }
         }
       }
@@ -546,7 +546,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "完成的转录会话将显示在这里"
+            "value" : "完成的转写会话将显示在这里"
           }
         }
       }
@@ -733,7 +733,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "暂无转录条目"
+            "value" : "暂无转写条目"
           }
         }
       }
@@ -801,7 +801,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "确定要删除所有转录历史吗？此操作无法撤销。"
+            "value" : "确定要删除所有转写历史吗？此操作无法撤销。"
           }
         }
       }
@@ -852,7 +852,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "转录历史"
+            "value" : "转写历史"
           }
         }
       }
@@ -1447,7 +1447,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "开始 / 停止转录"
+            "value" : "开始 / 停止转写"
           }
         }
       }
@@ -1753,7 +1753,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "转录"
+            "value" : "转写"
           }
         }
       }

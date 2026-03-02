@@ -13,7 +13,7 @@
 利用 Apple SpeechAnalyzer 框架的精确音频时间轴：
 
 1. **提供 `bufferStartTime`**：向 `AnalyzerInput` 传入 `CMTime`，基于累计输出帧数和采样率计算，让分析器建立准确的内部时间线
-2. **读取 `result.range`**：`SpeechTranscriber.Result` 遵循 `SpeechModuleResult` 协议，其 `range: CMTimeRange` 属性给出该转录结果对应的精确音频时间范围
+2. **读取 `result.range`**：`SpeechTranscriber.Result` 遵循 `SpeechModuleResult` 协议，其 `range: CMTimeRange` 属性给出该转写结果对应的精确音频时间范围
 3. **锚点转换**：记录 session 开始的 `Date` 作为 `CMTime(0)` 的墙钟锚点，将 `range.start` / `range.end` 转换为绝对 `Date`
 
 ### 数据模型变更
