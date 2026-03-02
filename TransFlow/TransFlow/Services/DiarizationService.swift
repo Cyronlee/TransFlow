@@ -18,10 +18,10 @@ final class DiarizationService: Sendable {
     }
 
     /// Perform offline diarization on pre-extracted 16kHz mono Float32 audio.
-    /// Returns sorted speaker segments.
-    func performDiarization(audio: [Float]) async throws -> [SpeakerSegment] {
+    /// - Parameter clusteringThreshold: Speaker separation sensitivity (0.5–0.95). Higher = more speakers detected.
+    func performDiarization(audio: [Float], clusteringThreshold: Double = 0.8) async throws -> [SpeakerSegment] {
         var config = OfflineDiarizerConfig()
-        config.clusteringThreshold = 0.8
+        config.clusteringThreshold = clusteringThreshold
         let manager = OfflineDiarizerManager(config: config)
         try await manager.prepareModels()
 

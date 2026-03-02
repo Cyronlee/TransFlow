@@ -16,12 +16,13 @@ final class VideoTranscriptionViewModel {
     var selectedFileName: String = ""
     var videoDuration: Double = 0
 
-    /// Configuration
-    var selectedLanguage: Locale = Locale(identifier: "en-US")
-    var availableLanguages: [Locale] = []
-    var enableDiarization: Bool = true
-    var enableTranslation: Bool = false
-    var targetLanguage: Locale.Language = Locale.Language(identifier: "zh-Hans")
+    /// Configuration — identifiers used as Picker tags to avoid Locale equality issues
+    var selectedLanguageId: String = AppSettings.shared.videoSourceLanguage
+    var availableLanguages: [(id: String, locale: Locale)] = []
+    var enableDiarization: Bool = AppSettings.shared.videoEnableDiarization
+    var diarizationSensitivity: Double = AppSettings.shared.diarizationSensitivity
+    var enableTranslation: Bool = AppSettings.shared.videoEnableTranslation
+    var targetLanguage: Locale.Language = Locale.Language(identifier: AppSettings.shared.videoTargetLanguage)
 
     /// Progress
     var overallProgress: Double = 0
@@ -30,7 +31,6 @@ final class VideoTranscriptionViewModel {
     /// Video player for result preview
     var player: AVPlayer?
     var activeSegmentIndex: Int?
-    var isVideoPlaying: Bool = false
     var currentPlaybackTime: Double = 0
 
     /// Error
@@ -46,7 +46,7 @@ final class VideoTranscriptionViewModel {
     private let audioExtractor = AudioExtractorService()
     private let diarizationService = DiarizationService()
     private var processingTask: Task<Void, Never>?
-    private var playbackTimer: Timer?
+    private var timeObserverToken: Any?
 
     // MARK: - Initialization
 
@@ -58,8 +58,20 @@ final class VideoTranscriptionViewModel {
 
     private func loadSupportedLanguages() async {
         let locales = await SpeechTranscriber.supportedLocales
-        availableLanguages = locales.map { Locale(identifier: $0.language.minimalIdentifier) }
-            .sorted { $0.identifier < $1.identifier }
+        availableLanguages = locales.map { locale -> (id: String, locale: Locale) in
+            let id = locale.language.minimalIdentifier
+            return (id: id, locale: Locale(identifier: id))
+        }.sorted { $0.id < $1.id }
+
+        if !availableLanguages.contains(where: { $0.id == selectedLanguageId }),
+           let first = availableLanguages.first {
+            selectedLanguageId = first.id
+        }
+    }
+
+    /// Resolved Locale for the currently selected language identifier.
+    var selectedLocale: Locale {
+        Locale(identifier: selectedLanguageId)
     }
 
     // MARK: - File Selection
@@ -77,6 +89,7 @@ final class VideoTranscriptionViewModel {
     }
 
     func clearFile() {
+        stopPlaybackObservation()
         selectedFileURL = nil
         selectedFileName = ""
         videoDuration = 0
@@ -84,7 +97,15 @@ final class VideoTranscriptionViewModel {
         segments = []
         state = .idle
         activeSegmentIndex = nil
-        stopPlaybackTimer()
+    }
+
+    private func saveConfigToSettings() {
+        let settings = AppSettings.shared
+        settings.videoSourceLanguage = selectedLanguageId
+        settings.videoEnableTranslation = enableTranslation
+        settings.videoTargetLanguage = targetLanguage.minimalIdentifier
+        settings.videoEnableDiarization = enableDiarization
+        settings.diarizationSensitivity = diarizationSensitivity
     }
 
     // MARK: - Start Processing
@@ -95,11 +116,12 @@ final class VideoTranscriptionViewModel {
 
         segments = []
         errorMessage = nil
+        saveConfigToSettings()
 
         processingTask = Task {
             do {
                 // Step 1: Ensure speech model is ready
-                let speechReady = await modelManager.ensureModelReady(for: selectedLanguage)
+                let speechReady = await modelManager.ensureModelReady(for: selectedLocale)
                 guard speechReady else {
                     state = .failed(message: String(localized: "video.error.speech_model_not_ready"))
                     return
@@ -122,7 +144,7 @@ final class VideoTranscriptionViewModel {
 
                 let transcriptionSentences = try await transcribeAudio(
                     samples: audioSamples,
-                    locale: selectedLanguage
+                    locale: selectedLocale
                 )
 
                 guard !Task.isCancelled else { return }
@@ -134,7 +156,11 @@ final class VideoTranscriptionViewModel {
                     state = .diarizing
                     progressMessage = String(localized: "video.progress.diarizing")
 
-                    diarizationSegments = try await diarizationService.performDiarization(audio: audioSamples)
+                    AppSettings.shared.diarizationSensitivity = diarizationSensitivity
+                    diarizationSegments = try await diarizationService.performDiarization(
+                        audio: audioSamples,
+                        clusteringThreshold: diarizationSensitivity
+                    )
                     overallProgress = 0.7
                 }
 
@@ -167,7 +193,7 @@ final class VideoTranscriptionViewModel {
                 let metadata = VideoJSONLMetadata(
                     videoFile: fileURL.lastPathComponent,
                     durationSeconds: videoDuration,
-                    sourceLanguage: selectedLanguage.identifier,
+                    sourceLanguage: selectedLanguageId,
                     targetLanguage: enableTranslation ? targetLanguage.minimalIdentifier : nil,
                     diarizationEnabled: enableDiarization
                 )
@@ -264,7 +290,8 @@ final class VideoTranscriptionViewModel {
     // MARK: - Merge
 
     /// Merge transcription sentences with diarization segments.
-    /// Converts absolute Date timestamps to seconds-from-start offsets.
+    /// When a sentence spans multiple speaker segments, split it at speaker boundaries
+    /// so each output segment belongs to a single speaker.
     private func mergeResults(
         sentences: [TranscriptionSentence],
         diarization: [DiarizationService.SpeakerSegment],
@@ -273,29 +300,244 @@ final class VideoTranscriptionViewModel {
         guard let firstSentence = sentences.first else { return [] }
         let baseDate = firstSentence.startTimestamp
 
-        return sentences.map { sentence in
-            let startSec = sentence.startTimestamp.timeIntervalSince(baseDate)
-            let endSec = sentence.timestamp.timeIntervalSince(baseDate)
-
-            let speakerId: String?
-            if !diarization.isEmpty {
-                speakerId = DiarizationService.assignSpeaker(
-                    sentenceStart: startSec,
-                    sentenceEnd: endSec,
-                    diarizationSegments: diarization
+        if diarization.isEmpty {
+            return sentences.map { sentence in
+                VideoTranscriptionSegment(
+                    startTime: max(0, sentence.startTimestamp.timeIntervalSince(baseDate)),
+                    endTime: max(0, sentence.timestamp.timeIntervalSince(baseDate)),
+                    text: sentence.text,
+                    translation: sentence.translation,
+                    speakerId: nil
                 )
-            } else {
-                speakerId = nil
+            }
+        }
+
+        var result: [VideoTranscriptionSegment] = []
+
+        for sentence in sentences {
+            let sentStart = sentence.startTimestamp.timeIntervalSince(baseDate)
+            let sentEnd = sentence.timestamp.timeIntervalSince(baseDate)
+            let sentDuration = sentEnd - sentStart
+
+            let overlapping = diarization.filter { seg in
+                seg.startTime < sentEnd && seg.endTime > sentStart
             }
 
-            return VideoTranscriptionSegment(
-                startTime: max(0, startSec),
-                endTime: max(0, endSec),
+            if overlapping.count <= 1 {
+                let speakerId = DiarizationService.assignSpeaker(
+                    sentenceStart: sentStart,
+                    sentenceEnd: sentEnd,
+                    diarizationSegments: diarization
+                )
+                result.append(VideoTranscriptionSegment(
+                    startTime: max(0, sentStart),
+                    endTime: max(0, sentEnd),
+                    text: sentence.text,
+                    translation: sentence.translation,
+                    speakerId: speakerId
+                ))
+                continue
+            }
+
+            let speakerRuns = buildSpeakerRuns(sentStart: sentStart, sentEnd: sentEnd, segments: overlapping)
+            guard speakerRuns.count > 1 else {
+                result.append(VideoTranscriptionSegment(
+                    startTime: max(0, sentStart),
+                    endTime: max(0, sentEnd),
+                    text: sentence.text,
+                    translation: sentence.translation,
+                    speakerId: speakerRuns.first?.speakerId
+                ))
+                continue
+            }
+
+            let textSlices = splitTextAtPunctuationBoundaries(
                 text: sentence.text,
-                translation: sentence.translation,
-                speakerId: speakerId
+                speakerRuns: speakerRuns,
+                sentStart: sentStart,
+                sentDuration: sentDuration
             )
+            let translationSlices: [String?]
+            if let trans = sentence.translation, !trans.isEmpty {
+                translationSlices = splitTextAtPunctuationBoundaries(
+                    text: trans,
+                    speakerRuns: speakerRuns,
+                    sentStart: sentStart,
+                    sentDuration: sentDuration
+                )
+            } else {
+                translationSlices = Array(repeating: nil, count: speakerRuns.count)
+            }
+
+            for (i, run) in speakerRuns.enumerated() {
+                let text = i < textSlices.count ? textSlices[i] : ""
+                guard !text.isEmpty else { continue }
+                result.append(VideoTranscriptionSegment(
+                    startTime: max(0, run.startTime),
+                    endTime: max(0, run.endTime),
+                    text: text,
+                    translation: i < translationSlices.count ? translationSlices[i] : nil,
+                    speakerId: run.speakerId
+                ))
+            }
         }
+
+        return result
+    }
+
+    /// Build contiguous speaker runs within a sentence's time range from overlapping diarization segments.
+    private func buildSpeakerRuns(
+        sentStart: Double,
+        sentEnd: Double,
+        segments: [DiarizationService.SpeakerSegment]
+    ) -> [(speakerId: String, startTime: Double, endTime: Double)] {
+        struct TimePoint: Comparable {
+            let time: Double
+            let speakerId: String?
+            let isStart: Bool
+            static func < (lhs: TimePoint, rhs: TimePoint) -> Bool { lhs.time < rhs.time }
+        }
+
+        var timeline: [(speakerId: String, startTime: Double, endTime: Double)] = []
+        let sorted = segments.sorted { $0.startTime < $1.startTime }
+
+        var cursor = sentStart
+        for seg in sorted {
+            let segStart = max(seg.startTime, sentStart)
+            let segEnd = min(seg.endTime, sentEnd)
+            guard segStart < segEnd else { continue }
+
+            if segStart > cursor {
+                if let last = timeline.last {
+                    timeline[timeline.count - 1] = (last.speakerId, last.startTime, segStart)
+                }
+            }
+            cursor = segEnd
+
+            if let last = timeline.last, last.speakerId == seg.speakerId {
+                timeline[timeline.count - 1] = (last.speakerId, last.startTime, segEnd)
+            } else {
+                timeline.append((seg.speakerId, segStart, segEnd))
+            }
+        }
+
+        if let last = timeline.last, last.endTime < sentEnd {
+            timeline[timeline.count - 1] = (last.speakerId, last.startTime, sentEnd)
+        }
+
+        return timeline
+    }
+
+    /// Split text into N slices corresponding to speaker runs, snapping to punctuation boundaries.
+    ///
+    /// 1. Compute the ideal split position (character index) for each boundary based on time proportion.
+    /// 2. Search nearby for a punctuation character (. , ! ? ; : 。，！？；：) within a window.
+    /// 3. Prefer the nearest punctuation after the ideal point; fall back to before; fall back to a
+    ///    word boundary (space); and finally fall back to the raw proportional position.
+    private func splitTextAtPunctuationBoundaries(
+        text: String,
+        speakerRuns: [(speakerId: String, startTime: Double, endTime: Double)],
+        sentStart: Double,
+        sentDuration: Double
+    ) -> [String] {
+        guard speakerRuns.count > 1, !text.isEmpty else {
+            return [text]
+        }
+
+        let chars = Array(text)
+        let totalChars = chars.count
+
+        let punctuationSet = CharacterSet(charactersIn: ".,!?;:。，！？；：、）)」】》")
+        let searchRadius = max(totalChars / 6, 8)
+
+        var splitIndices: [Int] = []
+        var cumulativeTime = 0.0
+        for i in 0..<(speakerRuns.count - 1) {
+            let runDuration = speakerRuns[i].endTime - speakerRuns[i].startTime
+            cumulativeTime += runDuration
+            let idealFraction = sentDuration > 0 ? cumulativeTime / sentDuration : Double(i + 1) / Double(speakerRuns.count)
+            let idealIdx = Int(round(idealFraction * Double(totalChars)))
+
+            let splitIdx = findBestSplitPoint(
+                chars: chars,
+                idealIndex: idealIdx,
+                searchRadius: searchRadius,
+                punctuationSet: punctuationSet
+            )
+            splitIndices.append(splitIdx)
+        }
+
+        for i in 1..<splitIndices.count {
+            if splitIndices[i] <= splitIndices[i - 1] {
+                splitIndices[i] = min(splitIndices[i - 1] + 1, totalChars)
+            }
+        }
+
+        var slices: [String] = []
+        var cursor = 0
+        for splitIdx in splitIndices {
+            let end = min(max(splitIdx, cursor), totalChars)
+            let slice = String(chars[cursor..<end]).trimmingCharacters(in: .whitespaces)
+            slices.append(slice)
+            cursor = end
+        }
+        let lastSlice = String(chars[cursor..<totalChars]).trimmingCharacters(in: .whitespaces)
+        slices.append(lastSlice)
+
+        return slices
+    }
+
+    /// Find the best character index to split text near `idealIndex`, preferring punctuation boundaries.
+    private func findBestSplitPoint(
+        chars: [Character],
+        idealIndex: Int,
+        searchRadius: Int,
+        punctuationSet: CharacterSet
+    ) -> Int {
+        let totalChars = chars.count
+        let clampedIdeal = min(max(idealIndex, 0), totalChars)
+
+        let searchStart = max(0, clampedIdeal - searchRadius)
+        let searchEnd = min(totalChars, clampedIdeal + searchRadius)
+
+        var bestPunctAfter: Int? = nil
+        for i in clampedIdeal..<searchEnd {
+            if i < totalChars && chars[i].unicodeScalars.allSatisfy({ punctuationSet.contains($0) }) {
+                bestPunctAfter = i + 1
+                break
+            }
+        }
+
+        var bestPunctBefore: Int? = nil
+        for i in stride(from: clampedIdeal - 1, through: searchStart, by: -1) {
+            if i >= 0 && i < totalChars && chars[i].unicodeScalars.allSatisfy({ punctuationSet.contains($0) }) {
+                bestPunctBefore = i + 1
+                break
+            }
+        }
+
+        if let after = bestPunctAfter, let before = bestPunctBefore {
+            let distAfter = after - clampedIdeal
+            let distBefore = clampedIdeal - before
+            return distAfter <= distBefore ? after : before
+        }
+        if let after = bestPunctAfter { return after }
+        if let before = bestPunctBefore { return before }
+
+        var bestSpace: Int? = nil
+        var bestSpaceDist = Int.max
+        for i in searchStart..<searchEnd {
+            if i < totalChars && chars[i] == " " {
+                let dist = abs(i - clampedIdeal)
+                if dist < bestSpaceDist {
+                    bestSpaceDist = dist
+                    bestSpace = i
+                }
+            }
+        }
+        if let space = bestSpace { return space }
+
+        return clampedIdeal
     }
 
     // MARK: - Translation
@@ -325,60 +567,38 @@ final class VideoTranscriptionViewModel {
         let segment = segments[index]
         let time = CMTime(seconds: segment.startTime, preferredTimescale: 600)
         player?.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero)
+        player?.play()
         activeSegmentIndex = index
     }
 
-    func togglePlayback() {
-        guard let player else { return }
-        if isVideoPlaying {
-            player.pause()
-            isVideoPlaying = false
-            stopPlaybackTimer()
-        } else {
-            player.play()
-            isVideoPlaying = true
-            startPlaybackTimer()
-        }
-    }
+    func startPlaybackObservation() {
+        guard let player, timeObserverToken == nil else { return }
+        let interval = CMTime(seconds: 0.1, preferredTimescale: 600)
+        timeObserverToken = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] cmTime in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let time = CMTimeGetSeconds(cmTime)
+                self.currentPlaybackTime = time
 
-    private func startPlaybackTimer() {
-        stopPlaybackTimer()
-        playbackTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.updatePlaybackState()
+                var best: Int?
+                for (i, seg) in self.segments.enumerated() {
+                    if time >= seg.startTime && time < seg.endTime {
+                        best = i
+                        break
+                    }
+                }
+                if self.activeSegmentIndex != best {
+                    self.activeSegmentIndex = best
+                }
             }
         }
     }
 
-    private func stopPlaybackTimer() {
-        playbackTimer?.invalidate()
-        playbackTimer = nil
-    }
-
-    private func updatePlaybackState() {
-        guard let player, let currentItem = player.currentItem else { return }
-        let time = CMTimeGetSeconds(player.currentTime())
-        currentPlaybackTime = time
-
-        if player.rate == 0 && isVideoPlaying {
-            let duration = CMTimeGetSeconds(currentItem.duration)
-            if time >= duration - 0.1 {
-                isVideoPlaying = false
-                stopPlaybackTimer()
-            }
+    private func stopPlaybackObservation() {
+        if let token = timeObserverToken, let player {
+            player.removeTimeObserver(token)
         }
-
-        // Update active segment
-        var best: Int?
-        for (i, seg) in segments.enumerated() {
-            if time >= seg.startTime && time < seg.endTime {
-                best = i
-                break
-            }
-        }
-        if activeSegmentIndex != best {
-            activeSegmentIndex = best
-        }
+        timeObserverToken = nil
     }
 
     // MARK: - Load from History

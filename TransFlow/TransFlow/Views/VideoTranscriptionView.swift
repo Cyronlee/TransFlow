@@ -172,10 +172,10 @@ struct VideoTranscriptionView: View {
                             .frame(width: 24)
                     }
                 } trailing: {
-                    Picker("", selection: $viewModel.selectedLanguage) {
-                        ForEach(viewModel.availableLanguages, id: \.identifier) { locale in
-                            Text(locale.localizedString(forIdentifier: locale.identifier) ?? locale.identifier)
-                                .tag(locale)
+                    Picker("", selection: $viewModel.selectedLanguageId) {
+                        ForEach(viewModel.availableLanguages, id: \.id) { item in
+                            Text(item.locale.localizedString(forIdentifier: item.id) ?? item.id)
+                                .tag(item.id)
                         }
                     }
                     .pickerStyle(.menu)
@@ -203,7 +203,7 @@ struct VideoTranscriptionView: View {
                         .onChange(of: viewModel.enableTranslation) {
                             viewModel.translationService.isEnabled = viewModel.enableTranslation
                             if viewModel.enableTranslation {
-                                viewModel.translationService.updateSourceLanguage(from: viewModel.selectedLanguage)
+                                viewModel.translationService.updateSourceLanguage(from: viewModel.selectedLocale)
                                 viewModel.translationService.updateConfiguration()
                             }
                         }
@@ -261,6 +261,42 @@ struct VideoTranscriptionView: View {
                     Toggle("", isOn: $viewModel.enableDiarization)
                         .toggleStyle(.switch)
                         .controlSize(.small)
+                }
+
+                if viewModel.enableDiarization {
+                    Divider().padding(.leading, 46)
+
+                    configRow {
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("video.config.speaker_sensitivity")
+                                    .font(.system(size: 13))
+                                Text("video.config.speaker_sensitivity_description")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.tertiary)
+                            }
+                        } icon: {
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(.orange)
+                                .frame(width: 24)
+                        }
+                    } trailing: {
+                        HStack(spacing: 8) {
+                            Text("video.config.sensitivity_fewer")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
+                            Slider(value: $viewModel.diarizationSensitivity, in: 0.5...0.95, step: 0.05)
+                                .frame(width: 120)
+                            Text("video.config.sensitivity_more")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
+                            Text(String(format: "%.2f", viewModel.diarizationSensitivity))
+                                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 36)
+                        }
+                    }
                 }
             }
             .background(
@@ -364,10 +400,13 @@ struct VideoTranscriptionView: View {
     }
 
     private var videoPlayerSection: some View {
-        VStack(spacing: 0) {
+        ZStack(alignment: .topTrailing) {
             if let player = viewModel.player {
                 VideoPlayer(player: player)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onAppear {
+                        viewModel.startPlaybackObservation()
+                    }
             } else {
                 Color.black
                     .overlay {
@@ -377,53 +416,21 @@ struct VideoTranscriptionView: View {
                     }
             }
 
-            // Playback controls
-            HStack(spacing: 16) {
-                Button {
-                    viewModel.togglePlayback()
-                } label: {
-                    Image(systemName: viewModel.isVideoPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 14, weight: .medium))
-                        .frame(width: 32, height: 32)
-                }
-                .buttonStyle(.plain)
-
-                Text(formatTime(viewModel.currentPlaybackTime))
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 50, alignment: .trailing)
-
-                Slider(
-                    value: Binding(
-                        get: { viewModel.currentPlaybackTime },
-                        set: { newValue in
-                            let time = CMTime(seconds: newValue, preferredTimescale: 600)
-                            viewModel.player?.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero)
-                            viewModel.currentPlaybackTime = newValue
-                        }
-                    ),
-                    in: 0...max(viewModel.videoDuration, 0.1)
-                )
-                .tint(.accentColor)
-
-                Text(formatTime(viewModel.videoDuration))
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-                    .frame(width: 50, alignment: .leading)
-
-                Button {
-                    viewModel.clearFile()
-                } label: {
-                    Image(systemName: "arrow.counterclockwise")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help("video.new_transcription")
+            Button {
+                viewModel.clearFile()
+            } label: {
+                Image(systemName: "arrow.counterclockwise")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(6)
+                    .background(
+                        Circle()
+                            .fill(.black.opacity(0.5))
+                    )
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(.background)
+            .buttonStyle(.plain)
+            .help("video.new_transcription")
+            .padding(8)
         }
     }
 
@@ -437,9 +444,6 @@ struct VideoTranscriptionView: View {
                             isActive: viewModel.activeSegmentIndex == index,
                             onTap: {
                                 viewModel.seekToSegment(at: index)
-                                if !viewModel.isVideoPlaying {
-                                    viewModel.togglePlayback()
-                                }
                             }
                         )
                         .id(index)
@@ -518,11 +522,6 @@ struct VideoTranscriptionView: View {
         return String(format: "%d:%02d", m, s)
     }
 
-    private func formatTime(_ seconds: Double) -> String {
-        let m = Int(seconds) / 60
-        let s = Int(seconds) % 60
-        return String(format: "%d:%02d", m, s)
-    }
 }
 
 // MARK: - Segment Row

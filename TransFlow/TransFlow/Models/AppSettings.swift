@@ -94,6 +94,12 @@ final class AppSettings {
         }
 
         self.diarizationHFEndpoint = UserDefaults.standard.string(forKey: "diarizationHFEndpoint") ?? ""
+        self.diarizationSensitivity = UserDefaults.standard.object(forKey: "diarizationSensitivity") as? Double ?? 0.8
+
+        self.videoSourceLanguage = UserDefaults.standard.string(forKey: "videoSourceLanguage") ?? "en"
+        self.videoEnableTranslation = UserDefaults.standard.bool(forKey: "videoEnableTranslation")
+        self.videoTargetLanguage = UserDefaults.standard.string(forKey: "videoTargetLanguage") ?? "zh-Hans"
+        self.videoEnableDiarization = UserDefaults.standard.object(forKey: "videoEnableDiarization") as? Bool ?? true
 
         self.hotkeyToggleTranscription = .empty
         self.hotkeyToggleTranslation = .empty
@@ -116,6 +122,29 @@ final class AppSettings {
         didSet {
             UserDefaults.standard.set(diarizationHFEndpoint, forKey: "diarizationHFEndpoint")
         }
+    }
+
+    /// Speaker separation sensitivity (maps to OfflineDiarizerConfig.clusteringThreshold).
+    /// Higher = more aggressive splitting (more speakers). Range: 0.5 – 0.95.
+    var diarizationSensitivity: Double {
+        didSet {
+            UserDefaults.standard.set(diarizationSensitivity, forKey: "diarizationSensitivity")
+        }
+    }
+
+    // MARK: - Video Transcription Config (remembered across sessions)
+
+    var videoSourceLanguage: String {
+        didSet { UserDefaults.standard.set(videoSourceLanguage, forKey: "videoSourceLanguage") }
+    }
+    var videoEnableTranslation: Bool {
+        didSet { UserDefaults.standard.set(videoEnableTranslation, forKey: "videoEnableTranslation") }
+    }
+    var videoTargetLanguage: String {
+        didSet { UserDefaults.standard.set(videoTargetLanguage, forKey: "videoTargetLanguage") }
+    }
+    var videoEnableDiarization: Bool {
+        didSet { UserDefaults.standard.set(videoEnableDiarization, forKey: "videoEnableDiarization") }
     }
 
     // MARK: - Hotkey Bindings
