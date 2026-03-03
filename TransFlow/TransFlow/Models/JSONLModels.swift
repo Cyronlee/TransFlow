@@ -70,7 +70,7 @@ struct JSONLMetadata: Codable {
     init(createTime: Date = Date(), appVersion: String? = nil) {
         self.createTime = ISO8601DateFormatter().string(from: createTime)
         self.appVersion = appVersion
-            ?? (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.3.0")
+            ?? (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.4.0")
     }
 }
 
