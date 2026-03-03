@@ -859,6 +859,36 @@ struct SessionDetailView: View {
 
 // MARK: - Video Session Detail
 
+/// NSViewRepresentable wrapper around AVPlayerView.
+/// Replaces SwiftUI `VideoPlayer` which crashes in release builds due to
+/// _AVKit_SwiftUI metadata resolution failure (getSuperclassMetadata).
+struct AVPlayerViewRepresentable: NSViewRepresentable {
+    let player: AVPlayer?
+
+    func makeNSView(context: Context) -> AVPlayerView {
+        let view = AVPlayerView()
+        view.controlsStyle = .inline
+        view.showsSharingServiceButton = false
+        view.showsFullScreenToggleButton = false
+        view.player = player
+        ErrorLogger.shared.log(
+            "AVPlayerViewRepresentable created, player=\(player != nil)",
+            source: "VideoHistory"
+        )
+        return view
+    }
+
+    func updateNSView(_ nsView: AVPlayerView, context: Context) {
+        if nsView.player !== player {
+            nsView.player = player
+            ErrorLogger.shared.log(
+                "AVPlayerViewRepresentable updated player, player=\(player != nil)",
+                source: "VideoHistory"
+            )
+        }
+    }
+}
+
 /// Observable model for video playback state in history preview.
 @Observable
 @MainActor
@@ -875,6 +905,10 @@ final class VideoHistoryPlayerModel {
         guard url != currentURL else { return }
         cleanup()
         currentURL = url
+        ErrorLogger.shared.log(
+            "Setting up video player for: \(url.lastPathComponent)",
+            source: "VideoHistory"
+        )
         let item = AVPlayerItem(url: url)
         player = AVPlayer(playerItem: item)
         startObservation()
@@ -897,6 +931,10 @@ final class VideoHistoryPlayerModel {
         player?.pause()
         player = nil
         activeSegmentIndex = nil
+        ErrorLogger.shared.log(
+            "Video player cleaned up (was: \(currentURL?.lastPathComponent ?? "nil"))",
+            source: "VideoHistory"
+        )
         currentURL = nil
     }
 
@@ -961,7 +999,7 @@ struct VideoSessionDetailView: View {
 
             if let url = sourceFileURL {
                 if isVideo {
-                    VideoPlayer(player: playerModel.player)
+                    AVPlayerViewRepresentable(player: playerModel.player)
                         .frame(minWidth: 300, maxWidth: .infinity)
                         .frame(height: max(150, min(videoPlayerHeight + dragOffset, 600)))
                         .clipped()
@@ -1050,7 +1088,15 @@ struct VideoSessionDetailView: View {
     }
 
     private func loadSession() {
+        ErrorLogger.shared.log(
+            "Loading video session: \(session.name), id=\(session.id)",
+            source: "VideoHistory"
+        )
         entries = store.readEntries(from: session.url)
+        ErrorLogger.shared.log(
+            "Loaded \(entries.count) entries, sourceFile=\(sourceFileURL?.path ?? "nil"), isVideo=\(isVideo)",
+            source: "VideoHistory"
+        )
         let segments = entries.map { entry in
             VideoTranscriptionSegment(
                 startTime: entry.startTime,
@@ -1065,6 +1111,10 @@ struct VideoSessionDetailView: View {
                 playerModel.setup(url: url, segments: segments)
             }
         } else {
+            ErrorLogger.shared.log(
+                "No source file URL, skipping player setup",
+                source: "VideoHistory"
+            )
             playerModel.segments = segments
         }
     }

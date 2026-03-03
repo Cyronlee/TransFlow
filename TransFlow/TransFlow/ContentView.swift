@@ -1,5 +1,4 @@
 import SwiftUI
-import Translation
 
 /// Main content view with history area on top and unified bottom panel
 /// (live preview + controls).
@@ -35,10 +34,6 @@ struct ContentView: View {
             )
         }
         .frame(minWidth: 640, minHeight: 460)
-        // Translation session provider
-        .translationTask(viewModel.translationService.configuration) { session in
-            await viewModel.translationService.handleSession(session)
-        }
         // Empty state
         .overlay {
             if viewModel.sentences.isEmpty && viewModel.currentPartialText.isEmpty {

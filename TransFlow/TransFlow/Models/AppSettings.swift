@@ -198,7 +198,7 @@ final class AppSettings {
 
     func adjustFloatingPanelFontSize(by delta: CGFloat) {
         let newSize = floatingPanelFontSize + delta
-        floatingPanelFontSize = min(max(newSize, 10), 28)
+        floatingPanelFontSize = min(max(newSize, 12), 72)
     }
 
     private func applyLanguage() {

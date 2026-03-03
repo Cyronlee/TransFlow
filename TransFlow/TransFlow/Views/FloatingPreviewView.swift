@@ -9,11 +9,14 @@ struct FloatingPreviewView: View {
     private let captionBottomAnchor = "floating-caption-bottom"
     private let maxFinalizedSentenceCount = 4
 
+    private static let fontSizeOptions: [CGFloat] = [
+        12, 14, 16, 18, 20, 24, 28, 32, 36, 42, 48, 56, 64, 72
+    ]
+
     var body: some View {
-        ZStack {
+        ZStack(alignment: .topTrailing) {
             captionCard
             controlOverlay
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         }
         .padding(2)
         .frame(minWidth: 340, idealWidth: 390, minHeight: 96, alignment: .topLeading)
@@ -41,7 +44,6 @@ struct FloatingPreviewView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(maxWidth: .infinity, minHeight: 80, maxHeight: .infinity)
-            .padding(.trailing, 56)
             .onAppear {
                 scrollToBottom(with: proxy, animated: false)
             }
@@ -54,22 +56,50 @@ struct FloatingPreviewView: View {
     }
 
     private var controlOverlay: some View {
-        VStack(spacing: 6) {
-            HStack(spacing: 8) {
-                pinButton
-                closeButton
-            }
-            HStack(spacing: 8) {
-                fontDecreaseButton
-                fontIncreaseButton
-            }
+        HStack(spacing: 6) {
+            fontSizeMenu
+            pinButton
+            closeButton
         }
         .padding(.top, 4)
-        .padding(.trailing, 10)
+        .padding(.trailing, 8)
         .opacity(shouldShowControls ? 1 : 0)
         .allowsHitTesting(shouldShowControls)
-        .contentShape(Rectangle())
         .zIndex(5)
+    }
+
+    private static let controlSize: CGFloat = 22
+
+    private var fontSizeMenu: some View {
+        Menu {
+            ForEach(Self.fontSizeOptions, id: \.self) { size in
+                Button {
+                    AppSettings.shared.floatingPanelFontSize = size
+                } label: {
+                    HStack {
+                        Text("\(Int(size)) pt")
+                        if Int(AppSettings.shared.floatingPanelFontSize) == Int(size) {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            Color.clear
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .frame(width: Self.controlSize, height: Self.controlSize)
+        .overlay {
+            Image(systemName: "textformat.size")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .allowsHitTesting(false)
+        }
+        .contentShape(Circle())
+        .glassEffect(.regular, in: .circle)
+        .help(Text("floating_preview.font_size"))
+        .accessibilityLabel(Text("floating_preview.font_size"))
     }
 
     private var pinButton: some View {
@@ -77,9 +107,9 @@ struct FloatingPreviewView: View {
             panelManager.togglePin()
         } label: {
             Image(systemName: panelManager.isPinned ? "pin.fill" : "pin")
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(panelManager.isPinned ? Color.accentColor : Color.secondary)
-                .frame(width: 19, height: 19)
+                .frame(width: Self.controlSize, height: Self.controlSize)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -93,47 +123,15 @@ struct FloatingPreviewView: View {
             panelManager.close()
         } label: {
             Image(systemName: "xmark")
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .frame(width: 19, height: 19)
+                .frame(width: Self.controlSize, height: Self.controlSize)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .glassEffect(.regular, in: .circle)
         .help(Text("floating_preview.close"))
         .accessibilityLabel(Text("floating_preview.close"))
-    }
-
-    private var fontDecreaseButton: some View {
-        Button {
-            AppSettings.shared.adjustFloatingPanelFontSize(by: -1)
-        } label: {
-            Image(systemName: "textformat.size.smaller")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 19, height: 19)
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .glassEffect(.regular, in: .circle)
-        .help(Text("floating_preview.decrease_font"))
-        .accessibilityLabel(Text("floating_preview.decrease_font"))
-    }
-
-    private var fontIncreaseButton: some View {
-        Button {
-            AppSettings.shared.adjustFloatingPanelFontSize(by: 1)
-        } label: {
-            Image(systemName: "textformat.size.larger")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 19, height: 19)
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .glassEffect(.regular, in: .circle)
-        .help(Text("floating_preview.increase_font"))
-        .accessibilityLabel(Text("floating_preview.increase_font"))
     }
 
     private var sourceFontSize: CGFloat {
@@ -281,3 +279,4 @@ private struct CaptionLine: Identifiable, Equatable {
     let kind: Kind
     var isPartial: Bool = false
 }
+

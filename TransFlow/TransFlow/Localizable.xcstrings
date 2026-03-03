@@ -7,6 +7,9 @@
     "%lld" : {
 
     },
+    "%lld pt" : {
+
+    },
     "%lld%%" : {
 
     },
@@ -441,36 +444,19 @@
         }
       }
     },
-    "floating_preview.decrease_font" : {
+    "floating_preview.font_size" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Decrease font size"
+            "value" : "Font size"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "减小字号"
-          }
-        }
-      }
-    },
-    "floating_preview.increase_font" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Increase font size"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "增大字号"
+            "value" : "字号"
           }
         }
       }
@@ -2107,6 +2093,23 @@
         }
       }
     },
+    "speaker.rename_prompt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a new name for this speaker:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入该说话人的新名称："
+          }
+        }
+      }
+    },
     "speaker.rename_title" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2124,19 +2127,36 @@
         }
       }
     },
-    "speaker.rename_prompt" : {
+    "transcription.auto_scroll_off" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Enter a new name for this speaker:"
+            "value" : "Auto-scroll disabled"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "输入该说话人的新名称："
+            "value" : "自动滚动已关闭"
+          }
+        }
+      }
+    },
+    "transcription.auto_scroll_on" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-scroll enabled"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动滚动已开启"
           }
         }
       }

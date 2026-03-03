@@ -6,32 +6,58 @@ struct TranscriptionView: View {
     let sentences: [TranscriptionSentence]
     let isTranslationEnabled: Bool
 
+    @State private var autoScroll = true
+
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(sentences) { sentence in
-                        SentenceRow(
-                            sentence: sentence,
-                            showTranslation: isTranslationEnabled
-                        )
+        ZStack(alignment: .bottomTrailing) {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(sentences) { sentence in
+                            SentenceRow(
+                                sentence: sentence,
+                                showTranslation: isTranslationEnabled
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 16)
+
+                    Color.clear
+                        .frame(height: 1)
+                        .id("bottom")
+                }
+                .onChange(of: sentences.count) {
+                    if autoScroll {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            proxy.scrollTo("bottom", anchor: .bottom)
+                        }
                     }
                 }
-                .padding(.horizontal, 24)
-                .padding(.vertical, 16)
+            }
 
-                // Anchor for auto-scroll — placed OUTSIDE the padded VStack
-                // so scrollTo reaches the true bottom of the content.
-                Color.clear
-                    .frame(height: 1)
-                    .id("bottom")
-            }
-            .onChange(of: sentences.count) {
-                withAnimation(.easeOut(duration: 0.2)) {
-                    proxy.scrollTo("bottom", anchor: .bottom)
-                }
-            }
+            autoScrollToggle
         }
+    }
+
+    private var autoScrollToggle: some View {
+        Button {
+            autoScroll.toggle()
+        } label: {
+            Image(systemName: "chevron.down.2")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(autoScroll ? Color.accentColor : Color.secondary)
+                .frame(width: 28, height: 28)
+                .background(
+                    Circle()
+                        .fill(.regularMaterial)
+                        .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .padding(.trailing, 16)
+        .padding(.bottom, 12)
+        .help(Text(autoScroll ? "transcription.auto_scroll_on" : "transcription.auto_scroll_off"))
     }
 }
 

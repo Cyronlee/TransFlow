@@ -57,6 +57,10 @@ struct SessionBarView: View {
 
     // MARK: - New Session Sheet
 
+    private var trimmedName: String {
+        newSessionName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private var newSessionSheet: some View {
         VStack(spacing: 16) {
             Text("session.new_session")
@@ -74,16 +78,20 @@ struct SessionBarView: View {
                 .keyboardShortcut(.cancelAction)
 
                 Button("session.create") {
-                    let name = newSessionName.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !name.isEmpty {
-                        onNewSession(name)
+                    if !trimmedName.isEmpty {
+                        onNewSession(trimmedName)
                     }
                     showingNewSessionSheet = false
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(newSessionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(trimmedName.isEmpty)
             }
         }
         .padding(24)
+        .onAppear {
+            if newSessionName.isEmpty {
+                newSessionName = JSONLStore.generateDefaultName()
+            }
+        }
     }
 }

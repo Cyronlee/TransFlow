@@ -94,14 +94,15 @@ final class TranslationService {
 
     /// Called from `.translationTask` modifier when a new session is available.
     func handleSession(_ session: TranslationSession) async {
+        ErrorLogger.shared.log("Received new translation session from .translationTask", source: "Translation")
         do {
             try await session.prepareTranslation()
         } catch {
-            // Don't block — the session may still work for already-downloaded pairs
             ErrorLogger.shared.log("Translation session prepare failed: \(error.localizedDescription)", source: "Translation")
         }
 
         self.session = session
+        ErrorLogger.shared.log("Translation session ready", source: "Translation")
     }
 
     /// Clears the current session (e.g. when translation is disabled).
@@ -111,6 +112,22 @@ final class TranslationService {
         currentPartialTranslation = ""
         debounceTask?.cancel()
         debounceTask = nil
+    }
+
+    /// Suspend the session when the owning view disappears.
+    /// The Translation framework crashes if a session is used after its view is gone.
+    func suspendSession() {
+        ErrorLogger.shared.log("Suspending translation session (view disappeared)", source: "Translation")
+        cancelAllTranslations()
+        session = nil
+        currentPartialTranslation = ""
+    }
+
+    /// Re-trigger the translation session by invalidating and recreating the configuration.
+    func resumeSession() {
+        guard isEnabled, sourceLanguage != nil else { return }
+        ErrorLogger.shared.log("Resuming translation session (view appeared)", source: "Translation")
+        updateConfiguration()
     }
 
     /// Cancel all in-flight translation tasks.
