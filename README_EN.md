@@ -25,16 +25,21 @@
   <img src="public/demo-1-zh.png" alt="TransFlow Demo" width="800">
 </div>
 
+<div align="center">
+  <img src="public/demo-2-zh.png" alt="TransFlow Video Transcription & Speaker Diarization" width="800">
+</div>
+
 ## ✨ Features
 
 - **🎙️ Real-time Speech Transcription** — Powered by Apple Speech framework with Neural Engine hardware acceleration, delivering high accuracy for long-form audio like meetings, lectures, and conversations
 - **🌐 Real-time Translation** — Leverages Apple Translation framework to translate transcription results on the fly, supporting all languages built into macOS
+- **🎬 Video Transcription & Speaker Diarization** — Import video files, automatically transcribe speech and identify different speakers, with each segment labeled by speaker and timestamp
 - **🔊 App Audio Capture** — Capture audio from other applications via ScreenCaptureKit for transcription — easily transcribe online meetings and videos
 - **🔒 Privacy First** — Speech recognition and translation run entirely on-device (offline)
 - **📜 History Browser** — Sessions are saved automatically. Browse, preview, rename, and delete past transcription sessions
 - **📤 Export Support** — Export sessions to SRT subtitle and Markdown formats
-- **⚙️ Settings & Customization** — Configure language preferences and app appearance (light/dark/system)
-- **🪶 Lightweight** — Under 800KB app size — beautifully minimal, install and go
+- **⚙️ Settings & Customization** — Configure language preferences, app appearance (light/dark/system), and global hotkeys
+- **🪶 Lightweight** — Under 5MB app size — beautifully minimal, install and go
 
 ## 🛠️ Tech Stack
 
@@ -88,9 +93,13 @@ Select the TransFlow target in Xcode and click Run.
 
 ## 🗺️ Roadmap
 
+- [x] ~~Speaker diarization (video transcription)~~
+- [x] ~~Custom keyboard shortcuts~~
+- [ ] Real-time speaker identification (microphone / app audio)
+- [ ] Custom vocabulary (professional terminology correction)
+- [ ] Post-transcription refinement (edit and polish results)
+- [ ] Global audio monitoring (system-level audio capture)
 - [ ] Support third-party speech models (e.g., Whisper)
-- [ ] Speaker recognition
-- [ ] Custom keyboard shortcuts
 - [ ] Custom styles
 - [ ] Welcome to contribute more
 
