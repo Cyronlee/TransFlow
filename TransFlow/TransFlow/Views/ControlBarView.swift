@@ -190,11 +190,14 @@ struct ControlBarView: View {
                     Button {
                         viewModel.audioSource = .appAudio(app)
                     } label: {
-                        HStack {
-                            Text(app.name)
-                            if case .appAudio(let target) = viewModel.audioSource, target?.id == app.id {
-                                Image(systemName: "checkmark")
-                            }
+                        if let iconData = app.iconData,
+                           let nsImage = NSImage(data: iconData) {
+                            Label { Text(app.name) } icon: { Image(nsImage: nsImage) }
+                        } else {
+                            Label(app.name, systemImage: "app.fill")
+                        }
+                        if case .appAudio(let target) = viewModel.audioSource, target?.id == app.id {
+                            Image(systemName: "checkmark")
                         }
                     }
                 }
