@@ -21,7 +21,7 @@ final class TransFlowViewModel {
     var audioSource: AudioSourceType = .microphone
     /// Selected transcription language
     var selectedLanguage: Locale = Locale(identifier: "en-US")
-    /// Available transcription languages
+    /// Available transcription languages (installed/ready only)
     var availableLanguages: [Locale] = []
     /// Available apps for audio capture
     var availableApps: [AppAudioTarget] = []
@@ -71,12 +71,9 @@ final class TransFlowViewModel {
         jsonlStore.createSession()
         micPermissionGranted = await AudioCaptureService.requestPermission()
         translationService.updateSourceLanguage(from: selectedLanguage)
-        await loadSupportedLanguages()
+        await refreshInstalledLanguages()
         await refreshAvailableApps()
         await modelManager.checkCurrentStatus(for: selectedLanguage)
-        if !modelManager.currentModelStatus.isReady {
-            await modelManager.ensureModelReady(for: selectedLanguage)
-        }
     }
 
     private func setupLifecycleObserver() {
@@ -92,6 +89,7 @@ final class TransFlowViewModel {
                     source: "Transcription"
                 )
                 guard self.listeningState == .idle else { return }
+                await self.refreshInstalledLanguages()
                 await self.modelManager.checkCurrentStatus(for: self.selectedLanguage)
             }
         }
@@ -100,9 +98,23 @@ final class TransFlowViewModel {
     // MARK: - Language
 
     func loadSupportedLanguages() async {
-        let locales = await SpeechTranscriber.supportedLocales
-        availableLanguages = locales.map { Locale(identifier: $0.language.minimalIdentifier) }
-            .sorted { $0.identifier < $1.identifier }
+        await refreshInstalledLanguages()
+    }
+
+    func refreshInstalledLanguages() async {
+        await modelManager.refreshAllStatuses()
+        let supportedLanguages = modelManager.supportedLocales.sorted { $0.identifier < $1.identifier }
+        availableLanguages = supportedLanguages.filter { locale in
+            (modelManager.localeStatuses[locale.identifier] ?? .checking).isReady
+        }
+
+        guard !availableLanguages.isEmpty else { return }
+
+        let selectedIdentifier = selectedLanguage.identifier
+        if !availableLanguages.contains(where: { $0.identifier == selectedIdentifier }) {
+            selectedLanguage = availableLanguages[0]
+            translationService.updateSourceLanguage(from: selectedLanguage)
+        }
     }
 
     func switchLanguage(to locale: Locale) {
@@ -116,9 +128,6 @@ final class TransFlowViewModel {
 
         Task {
             await modelManager.checkCurrentStatus(for: locale)
-            if !modelManager.currentModelStatus.isReady {
-                await modelManager.ensureModelReady(for: locale)
-            }
         }
 
         if wasListening {
@@ -136,6 +145,10 @@ final class TransFlowViewModel {
 
     func startListening() {
         guard listeningState == .idle else { return }
+        guard !availableLanguages.isEmpty else {
+            showModelNotReadyAlert = true
+            return
+        }
         listeningState = .starting
         ErrorLogger.shared.log(
             "startListening: language=\(selectedLanguage.identifier), source=\(audioSource)",

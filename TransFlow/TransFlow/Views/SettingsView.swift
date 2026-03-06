@@ -11,6 +11,7 @@ struct SettingsView: View {
     @State private var diarizationModelManager = DiarizationModelManager.shared
     @State private var hotkeyManager = GlobalHotkeyManager.shared
     @State private var hasLoadedModels = false
+    @State private var isManagingSpeechLanguages = false
 
     var body: some View {
         ScrollView {
@@ -122,6 +123,16 @@ struct SettingsView: View {
         }
         .onAppear {
             updateChecker.checkOnceOnLaunch()
+        }
+        .sheet(isPresented: $isManagingSpeechLanguages) {
+            manageSpeechLanguagesSheet
+        }
+        .onChange(of: isManagingSpeechLanguages) {
+            if !isManagingSpeechLanguages {
+                Task {
+                    await modelManager.refreshAllStatuses()
+                }
+            }
         }
     }
 
@@ -402,7 +413,22 @@ struct SettingsView: View {
     // MARK: - Speech Models Content
 
     private var speechModelsContent: some View {
-        Group {
+        VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "info.circle.fill")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24)
+                Text("settings.speech_models_limit_hint \(modelManager.maximumReservedLocales)")
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+
+            Divider().padding(.leading, 46)
+
             if modelManager.supportedLocales.isEmpty {
                 HStack {
                     Label {
@@ -417,16 +443,147 @@ struct SettingsView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
+            } else if installedSpeechLocales.isEmpty {
+                HStack {
+                    Label {
+                        Text("settings.speech_models_no_installed")
+                            .font(.system(size: 13, weight: .regular))
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.orange)
+                            .frame(width: 24)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
             } else {
+                ForEach(Array(installedSpeechLocales.enumerated()), id: \.element.identifier) { index, locale in
+                    if index > 0 {
+                        Divider().padding(.leading, 46)
+                    }
+                    speechModelRow(for: locale)
+                }
+            }
+
+            Divider().padding(.leading, 46)
+
+            Button {
+                Task {
+                    await modelManager.refreshAllStatuses()
+                }
+            } label: {
+                HStack {
+                    Label {
+                        Text("settings.speech_models_refresh")
+                            .font(.system(size: 13, weight: .regular))
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 24)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Divider().padding(.leading, 46)
+
+            Button {
+                isManagingSpeechLanguages = true
+            } label: {
+                HStack {
+                    Label {
+                        Text("settings.speech_models_manage")
+                            .font(.system(size: 13, weight: .regular))
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 24)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var installedSpeechLocales: [Locale] {
+        modelManager.supportedLocales
+            .filter { (modelManager.localeStatuses[$0.identifier] ?? .checking).isReady }
+            .sorted { $0.identifier < $1.identifier }
+    }
+
+    private var manageSpeechLanguagesSheet: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("settings.speech_models_manage_title")
+                    .font(.system(size: 14, weight: .semibold))
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            Divider()
+
+            ScrollView {
                 VStack(spacing: 0) {
-                    ForEach(Array(modelManager.supportedLocales.enumerated()), id: \.element.identifier) { index, locale in
-                        if index > 0 {
-                            Divider().padding(.leading, 46)
+                    if modelManager.supportedLocales.isEmpty {
+                        HStack {
+                            Label {
+                                Text("settings.models_loading")
+                                    .font(.system(size: 13, weight: .regular))
+                            } icon: {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .frame(width: 24, height: 14)
+                            }
+                            Spacer()
                         }
-                        speechModelRow(for: locale)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                    } else {
+                        ForEach(Array(modelManager.supportedLocales.sorted { $0.identifier < $1.identifier }.enumerated()), id: \.element.identifier) { index, locale in
+                            if index > 0 {
+                                Divider().padding(.leading, 46)
+                            }
+                            speechModelRow(for: locale)
+                        }
                     }
                 }
             }
+
+            Divider()
+
+            HStack {
+                Spacer()
+                Button("settings.done") {
+                    isManagingSpeechLanguages = false
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+        }
+        .frame(width: 520, height: 420)
+        .task {
+            await modelManager.refreshAllStatuses()
         }
     }
 
@@ -523,9 +680,10 @@ struct SettingsView: View {
             Button {
                 Task {
                     await modelManager.downloadModel(for: locale)
+                    await modelManager.refreshAllStatuses()
                 }
             } label: {
-                Text("model_action.select")
+                Text("model_action.add")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 10)
@@ -544,19 +702,23 @@ struct SettingsView: View {
                 .tint(.blue)
 
         case .installed:
-            HStack(spacing: 4) {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 9, weight: .bold))
-                Text("model_status.ready")
+            Button {
+                Task {
+                    await modelManager.releaseLocale(locale)
+                    await modelManager.refreshAllStatuses()
+                }
+            } label: {
+                Text("model_action.remove")
                     .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(.quaternary.opacity(0.7))
+                    )
             }
-            .foregroundStyle(.green)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(Color.green.opacity(0.12))
-            )
+            .buttonStyle(.plain)
 
         case .unsupported, .checking:
             EmptyView()

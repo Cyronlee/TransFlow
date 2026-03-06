@@ -56,6 +56,9 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .clearHistory)) { _ in
             viewModel.clearHistory()
         }
+        .task(id: "transcription-language-refresh") {
+            await viewModel.refreshInstalledLanguages()
+        }
     }
 
     private var emptyStateView: some View {

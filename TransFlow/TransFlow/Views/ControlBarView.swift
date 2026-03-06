@@ -251,21 +251,33 @@ struct ControlBarView: View {
 
     private var languagePicker: some View {
         Menu {
-            ForEach(viewModel.availableLanguages, id: \.identifier) { locale in
-                Button {
-                    viewModel.switchLanguage(to: locale)
-                } label: {
-                    HStack {
-                        Text(locale.localizedString(forIdentifier: locale.identifier) ?? locale.identifier)
-                        if locale.identifier == viewModel.selectedLanguage.identifier {
-                            Image(systemName: "checkmark")
+            if viewModel.availableLanguages.isEmpty {
+                Label("control.language_none_warning", systemImage: "exclamationmark.triangle")
+            } else {
+                ForEach(viewModel.availableLanguages, id: \.identifier) { locale in
+                    Button {
+                        viewModel.switchLanguage(to: locale)
+                    } label: {
+                        HStack {
+                            Text(locale.localizedString(forIdentifier: locale.identifier) ?? locale.identifier)
+                            if locale.identifier == viewModel.selectedLanguage.identifier {
+                                Image(systemName: "checkmark")
+                            }
                         }
                     }
                 }
             }
+
+            Divider()
+
+            Button {
+                NotificationCenter.default.post(name: .navigateToSettings, object: nil)
+            } label: {
+                Label("model_action.manage_languages", systemImage: "slider.horizontal.3")
+            }
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: "globe")
+                Image(systemName: viewModel.availableLanguages.isEmpty ? "exclamationmark.triangle" : "globe")
                     .font(.system(size: 12, weight: .medium))
                 Text(languageDisplayName)
                     .font(.system(size: 11, weight: .medium))
@@ -286,7 +298,10 @@ struct ControlBarView: View {
     }
 
     private var languageDisplayName: String {
-        viewModel.selectedLanguage.localizedString(
+        guard !viewModel.availableLanguages.isEmpty else {
+            return String(localized: "control.language_none")
+        }
+        return viewModel.selectedLanguage.localizedString(
             forIdentifier: viewModel.selectedLanguage.identifier
         ) ?? viewModel.selectedLanguage.identifier
     }

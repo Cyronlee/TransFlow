@@ -52,20 +52,31 @@ final class VideoTranscriptionViewModel {
 
     init() {
         Task {
-            await loadSupportedLanguages()
+            await refreshAvailableLanguages()
         }
     }
 
-    private func loadSupportedLanguages() async {
-        let locales = await SpeechTranscriber.supportedLocales
-        availableLanguages = locales.map { locale -> (id: String, locale: Locale) in
-            let id = locale.language.minimalIdentifier
-            return (id: id, locale: Locale(identifier: id))
-        }.sorted { $0.id < $1.id }
+    func refreshAvailableLanguages() async {
+        await modelManager.refreshAllStatuses()
+        availableLanguages = modelManager.supportedLocales
+            .sorted { $0.identifier < $1.identifier }
+            .compactMap { locale -> (id: String, locale: Locale)? in
+                let status = modelManager.localeStatuses[locale.identifier] ?? .checking
+                return status.isReady ? (id: locale.identifier, locale: locale) : nil
+            }
 
         if !availableLanguages.contains(where: { $0.id == selectedLanguageId }),
            let first = availableLanguages.first {
             selectedLanguageId = first.id
+        }
+    }
+
+    func selectSourceLanguage(_ languageId: String) {
+        guard availableLanguages.contains(where: { $0.id == languageId }) else { return }
+        selectedLanguageId = languageId
+        if enableTranslation {
+            translationService.updateSourceLanguage(from: selectedLocale)
+            translationService.updateConfiguration()
         }
     }
 
@@ -113,6 +124,10 @@ final class VideoTranscriptionViewModel {
     func startTranscription() {
         guard let fileURL = selectedFileURL else { return }
         guard !state.isProcessing else { return }
+        guard availableLanguages.contains(where: { $0.id == selectedLanguageId }) else {
+            state = .failed(message: String(localized: "video.error.no_installed_language"))
+            return
+        }
 
         segments = []
         errorMessage = nil

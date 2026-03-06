@@ -29,6 +29,9 @@ struct VideoTranscriptionView: View {
         .translationTask(viewModel.translationService.configuration) { session in
             await viewModel.translationService.handleSession(session)
         }
+        .task(id: "video-language-refresh") {
+            await viewModel.refreshAvailableLanguages()
+        }
     }
 
     // MARK: - Setup View
@@ -170,15 +173,51 @@ struct VideoTranscriptionView: View {
                             .frame(width: 24)
                     }
                 } trailing: {
-                    Picker("", selection: $viewModel.selectedLanguageId) {
-                        ForEach(viewModel.availableLanguages, id: \.id) { item in
-                            Text(item.locale.localizedString(forIdentifier: item.id) ?? item.id)
-                                .tag(item.id)
+                    Menu {
+                        if viewModel.availableLanguages.isEmpty {
+                            Text("video.language.none")
+                        } else {
+                            ForEach(viewModel.availableLanguages, id: \.id) { item in
+                                Button {
+                                    viewModel.selectSourceLanguage(item.id)
+                                } label: {
+                                    HStack {
+                                        Text(item.locale.localizedString(forIdentifier: item.id) ?? item.id)
+                                        if item.id == viewModel.selectedLanguageId {
+                                            Image(systemName: "checkmark")
+                                        }
+                                    }
+                                }
+                            }
                         }
+
+                        Divider()
+
+                        Button {
+                            NotificationCenter.default.post(name: .navigateToSettings, object: nil)
+                        } label: {
+                            Label("model_action.manage_languages", systemImage: "slider.horizontal.3")
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: viewModel.availableLanguages.isEmpty ? "exclamationmark.triangle" : "globe")
+                                .font(.system(size: 12, weight: .medium))
+                            Text(selectedSourceLanguageName)
+                                .font(.system(size: 11, weight: .medium))
+                                .lineLimit(1)
+                                .frame(maxWidth: 120, alignment: .leading)
+                        }
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(.quaternary.opacity(0.5))
+                        )
                     }
-                    .pickerStyle(.menu)
+                    .menuStyle(.borderlessButton)
                     .fixedSize()
-                    .tint(.secondary)
+                    .help(Text("video.config.source_language"))
                 }
 
                 Divider().padding(.leading, 46)
@@ -305,6 +344,13 @@ struct VideoTranscriptionView: View {
         }
     }
 
+    private var selectedSourceLanguageName: String {
+        guard let selected = viewModel.availableLanguages.first(where: { $0.id == viewModel.selectedLanguageId }) else {
+            return String(localized: "video.language.none")
+        }
+        return selected.locale.localizedString(forIdentifier: selected.id) ?? selected.id
+    }
+
     private func configRow<Leading: View, Trailing: View>(
         @ViewBuilder leading: () -> Leading,
         @ViewBuilder trailing: () -> Trailing
@@ -335,11 +381,11 @@ struct VideoTranscriptionView: View {
             .padding(.vertical, 12)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(viewModel.selectedFileURL != nil ? Color.accentColor : Color.gray)
+                    .fill((viewModel.selectedFileURL != nil && !viewModel.availableLanguages.isEmpty) ? Color.accentColor : Color.gray)
             )
         }
         .buttonStyle(.plain)
-        .disabled(viewModel.selectedFileURL == nil)
+        .disabled(viewModel.selectedFileURL == nil || viewModel.availableLanguages.isEmpty)
     }
 
     // MARK: - Progress View
