@@ -305,23 +305,6 @@
         }
       }
     },
-    "control.downloading_model" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Downloading model..."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在下载模型…"
-          }
-        }
-      }
-    },
     "control.stop_recording" : {
       "extractionState" : "manual",
       "localizations" : {

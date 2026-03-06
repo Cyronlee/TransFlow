@@ -99,9 +99,10 @@ final class TransFlowViewModel {
             if !modelManager.currentModelStatus.isReady {
                 await modelManager.ensureModelReady(for: locale)
             }
-            if wasListening {
-                startListening()
-            }
+        }
+
+        if wasListening {
+            startListening()
         }
     }
 

@@ -15,16 +15,7 @@ struct ControlBarView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             // ── Center: Record button ──
-            VStack(spacing: 4) {
-                recordButton
-                if isDownloadingModel {
-                    Text("control.downloading_model")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .transition(.opacity)
-                }
-            }
-            .animation(.easeInOut(duration: 0.25), value: isDownloadingModel)
+            recordButton
 
             // ── Right: Language + Translation + Export ──
             rightControls
@@ -98,18 +89,9 @@ struct ControlBarView: View {
 
                 // Loading state overlay
                 if viewModel.listeningState == .starting || viewModel.listeningState == .stopping {
-                    if isDownloadingModel {
-                        Circle()
-                            .trim(from: 0, to: viewModel.modelManager.downloadProgress)
-                            .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                            .frame(width: 52, height: 52)
-                            .rotationEffect(.degrees(-90))
-                            .animation(.easeInOut(duration: 0.3), value: viewModel.modelManager.downloadProgress)
-                    } else {
-                        ProgressView()
-                            .scaleEffect(0.6)
-                            .tint(.secondary)
-                    }
+                    ProgressView()
+                        .scaleEffect(0.6)
+                        .tint(.secondary)
                 }
             }
             .animation(.spring(response: 0.35, dampingFraction: 0.7), value: viewModel.listeningState)
@@ -126,10 +108,6 @@ struct ControlBarView: View {
         .disabled(viewModel.listeningState == .starting || viewModel.listeningState == .stopping)
         .help(Text(recordButtonHelpText))
         .accessibilityLabel(Text(recordButtonAccessibilityLabel))
-    }
-
-    private var isDownloadingModel: Bool {
-        viewModel.listeningState == .starting && viewModel.modelManager.currentModelStatus.isDownloading
     }
 
     private var recordButtonRingColor: Color {
