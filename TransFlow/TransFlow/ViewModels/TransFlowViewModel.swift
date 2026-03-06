@@ -145,6 +145,11 @@ final class TransFlowViewModel {
                     audioStream = capture.stream
                     stop = capture.stop
 
+                case .systemAudio:
+                    let capture = try await AppAudioCaptureService.startSystemCapture()
+                    audioStream = capture.stream
+                    stop = capture.stop
+
                 case .appAudio(let target):
                     guard let target else {
                         errorMessage = "No app selected"

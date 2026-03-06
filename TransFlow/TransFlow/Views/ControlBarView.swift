@@ -172,6 +172,15 @@ struct ControlBarView: View {
                 }
             }
 
+            Button {
+                viewModel.audioSource = .systemAudio
+            } label: {
+                Label("control.system_audio", systemImage: "speaker.wave.2.fill")
+                if case .systemAudio = viewModel.audioSource {
+                    Image(systemName: "checkmark")
+                }
+            }
+
             Divider()
 
             if viewModel.availableApps.isEmpty {
@@ -181,11 +190,14 @@ struct ControlBarView: View {
                     Button {
                         viewModel.audioSource = .appAudio(app)
                     } label: {
-                        HStack {
-                            Text(app.name)
-                            if case .appAudio(let target) = viewModel.audioSource, target?.id == app.id {
-                                Image(systemName: "checkmark")
-                            }
+                        if let iconData = app.iconData,
+                           let nsImage = NSImage(data: iconData) {
+                            Label { Text(app.name) } icon: { Image(nsImage: nsImage) }
+                        } else {
+                            Label(app.name, systemImage: "app.fill")
+                        }
+                        if case .appAudio(let target) = viewModel.audioSource, target?.id == app.id {
+                            Image(systemName: "checkmark")
                         }
                     }
                 }
@@ -226,6 +238,9 @@ struct ControlBarView: View {
         case .microphone:
             Image(systemName: "mic.fill")
                 .font(.system(size: 12, weight: .medium))
+        case .systemAudio:
+            Image(systemName: "speaker.wave.2.fill")
+                .font(.system(size: 12, weight: .medium))
         case .appAudio(let target):
             if let target, let iconData = target.iconData,
                let nsImage = NSImage(data: iconData) {
@@ -243,6 +258,7 @@ struct ControlBarView: View {
     private var audioSourceName: String {
         switch viewModel.audioSource {
         case .microphone: String(localized: "control.microphone")
+        case .systemAudio: String(localized: "control.system_audio")
         case .appAudio(let target): target?.name ?? String(localized: "control.app")
         }
     }

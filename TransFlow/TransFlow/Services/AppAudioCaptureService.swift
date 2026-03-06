@@ -148,13 +148,73 @@ final class AppAudioCaptureService: NSObject, Sendable {
         return (handler.audioStream, stop)
     }
 
+    /// Start capturing audio from all applications (system-wide).
+    static func startSystemCapture() async throws -> (stream: AsyncStream<AudioChunk>, stop: @Sendable () -> Void) {
+        let content = try await SCShareableContent.excludingDesktopWindows(
+            false, onScreenWindowsOnly: false
+        )
+
+        guard let display = content.displays.first else {
+            throw CaptureError.noDisplay
+        }
+
+        let currentBundleID = Bundle.main.bundleIdentifier ?? ""
+        let allApps = content.applications.filter { $0.bundleIdentifier != currentBundleID }
+
+        let filter = SCContentFilter(
+            display: display,
+            including: allApps,
+            exceptingWindows: []
+        )
+
+        let config = SCStreamConfiguration()
+        config.capturesAudio = true
+        config.excludesCurrentProcessAudio = true
+        config.sampleRate = 48_000
+        config.channelCount = 1
+        config.width = 2
+        config.height = 2
+        config.minimumFrameInterval = CMTime(value: 1, timescale: 1)
+        config.showsCursor = false
+
+        let scStream = SCStream(filter: filter, configuration: config, delegate: nil)
+
+        let handler = AudioStreamHandler(targetSampleRate: targetSampleRate)
+
+        try scStream.addStreamOutput(
+            handler,
+            type: .audio,
+            sampleHandlerQueue: DispatchQueue.global(qos: .userInteractive)
+        )
+        try scStream.addStreamOutput(
+            handler,
+            type: .screen,
+            sampleHandlerQueue: nil
+        )
+
+        try await scStream.startCapture()
+
+        nonisolated(unsafe) let capturedStream = scStream
+        let stop: @Sendable () -> Void = {
+            Task {
+                try? await capturedStream.stopCapture()
+            }
+            handler.finish()
+        }
+
+        return (handler.audioStream, stop)
+    }
+
     enum CaptureError: Error, LocalizedError {
         case appNotFound
+        case noDisplay
 
         var errorDescription: String? {
             switch self {
             case .appNotFound:
                 "Target application not found"
+            case .noDisplay:
+                "No display available for capture"
             }
         }
     }

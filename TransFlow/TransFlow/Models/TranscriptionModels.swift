@@ -32,6 +32,7 @@ enum ListeningState: Sendable, Equatable {
 /// Audio source type selection.
 enum AudioSourceType: Sendable, Equatable, Hashable {
     case microphone
+    case systemAudio
     case appAudio(AppAudioTarget?)
 }
 
