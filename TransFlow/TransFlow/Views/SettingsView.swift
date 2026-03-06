@@ -106,11 +106,19 @@ struct SettingsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.background)
-        .task {
+        .task(id: "initial-load") {
             guard !hasLoadedModels else { return }
             hasLoadedModels = true
             await modelManager.refreshAllStatuses()
             diarizationModelManager.checkStatus()
+        }
+        .onAppear {
+            if hasLoadedModels {
+                Task {
+                    await modelManager.refreshAllStatuses()
+                    diarizationModelManager.checkStatus()
+                }
+            }
         }
         .onAppear {
             updateChecker.checkOnceOnLaunch()

@@ -19,7 +19,11 @@ final class SpeechEngine: Sendable {
 
         Task {
             do {
-                // 1. Create SpeechTranscriber
+                ErrorLogger.shared.log(
+                    "processStream: initializing for locale \(locale.identifier)",
+                    source: "SpeechEngine"
+                )
+
                 guard let supportedLocale = await SpeechTranscriber.supportedLocale(
                     equivalentTo: locale
                 ) else {
@@ -36,17 +40,16 @@ final class SpeechEngine: Sendable {
                     attributeOptions: []
                 )
 
-                // 2. Get compatible audio format
                 let analyzerFormat = await SpeechAnalyzer.bestAvailableAudioFormat(
                     compatibleWith: [transcriber]
                 )
 
-                // 3. Model assets are managed by SpeechModelManager;
-                //    assume they are installed before processStream is called.
-
-                // 4. Create SpeechAnalyzer and warm up
                 let analyzer = SpeechAnalyzer(modules: [transcriber])
                 try await analyzer.prepareToAnalyze(in: analyzerFormat)
+                ErrorLogger.shared.log(
+                    "processStream: analyzer prepared (format: \(analyzerFormat?.description ?? "default"))",
+                    source: "SpeechEngine"
+                )
 
                 // 5. Create input stream
                 let (inputSequence, inputBuilder) = AsyncStream<AnalyzerInput>.makeStream()
@@ -144,10 +147,13 @@ final class SpeechEngine: Sendable {
                     }
                 }
 
-                // 10. Finish
                 inputBuilder.finish()
                 try await analyzer.finalizeAndFinishThroughEndOfInput()
                 resultTask.cancel()
+                ErrorLogger.shared.log(
+                    "processStream: finalized for locale \(locale.identifier)",
+                    source: "SpeechEngine"
+                )
 
             } catch {
                 ErrorLogger.shared.log("Engine error: \(error.localizedDescription)", source: "SpeechEngine")

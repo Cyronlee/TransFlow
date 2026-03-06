@@ -1,0 +1,27 @@
+---
+description: Speech model lifecycle constraints — AssetInventory stale cache workaround, model readiness checks, lifecycle observers
+globs: "**/SpeechModelManager.swift,**/SpeechEngine.swift,**/TransFlowViewModel.swift,**/VideoTranscriptionViewModel.swift,**/SettingsView.swift"
+alwaysApply: false
+---
+
+# Speech Model Lifecycle
+
+Full design doc: `docs/speech-model-lifecycle.md` — read it before modifying these files.
+
+## Must-Not-Break Rules
+
+1. **Keep lifecycle observers** — `SpeechModelManager` and `TransFlowViewModel` both observe `NSApplication.didBecomeActiveNotification`. This is the workaround for macOS 26 AssetInventory stale cache. Removing either will re-introduce the "model not ready after idle" bug.
+
+2. **Always call `ensureModelReady()` before transcription** — `SpeechEngine` assumes models are installed. Every transcription entry point (`startListening`, `startTranscription`, any new one) must gate on `ensureModelReady()` returning `true`.
+
+3. **Keep re-reserve in `ensureModelReady()`** — When `checkStatus()` returns `.notDownloaded`, the code calls `attemptReReserve()` then re-checks before falling through to download. This recovers stale cache without a full re-download.
+
+4. **SettingsView must refresh on every appearance** — The `.onAppear` block calls `refreshAllStatuses()` on subsequent visits. Do NOT guard it behind a "load once" flag.
+
+5. **Log all status transitions** — `ErrorLogger.shared.log(…, source: "SpeechModel")` on every status change. These logs are essential for diagnosing the intermittent stale cache issue.
+
+## Adding New Transcription Features
+
+- Add `modelManager.ensureModelReady(for: locale)` guard
+- Add lifecycle observer for `didBecomeActiveNotification` if the ViewModel holds a selected locale
+- Log lifecycle events with `ErrorLogger.shared`

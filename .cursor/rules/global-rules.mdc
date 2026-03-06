@@ -4,6 +4,7 @@ alwaysApply: true
 
 ## 开发文档
 - 使用 `apple-docs-mcp` 搜索 macOS 开发文档
+- 修改语音转写相关文件前，先读 `docs/speech-model-lifecycle.md`
 
 ## 质量检查
 - 确保 xcode build 成功

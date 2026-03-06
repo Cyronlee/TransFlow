@@ -1,6 +1,7 @@
 import Foundation
 import Speech
 import Observation
+import AppKit
 
 /// Represents the download/install status of a speech model for a specific locale.
 enum SpeechModelStatus: Equatable {
@@ -69,8 +70,83 @@ final class SpeechModelManager {
     var supportedLocales: [Locale] = []
 
     private var progressObservation: (any NSObjectProtocol)?
+    private var lifecycleObserver: (any NSObjectProtocol)?
 
-    private init() {}
+    private init() {
+        setupLifecycleObserver()
+    }
+
+    // MARK: - App Lifecycle
+
+    private func setupLifecycleObserver() {
+        lifecycleObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                await self.handleAppBecameActive()
+            }
+        }
+    }
+
+    /// Re-validate model statuses when the app returns to foreground.
+    /// AssetInventory's internal cache can go stale after prolonged inactivity,
+    /// causing reservedLocales and status queries to return incorrect results.
+    private func handleAppBecameActive() async {
+        guard !isDownloading else { return }
+
+        let trackedCount = localeStatuses.count
+        ErrorLogger.shared.log(
+            "App became active — re-validating \(trackedCount) tracked locale(s)",
+            source: "SpeechModel"
+        )
+
+        for (identifier, oldStatus) in localeStatuses {
+            let locale = Locale(identifier: identifier)
+            let freshStatus = await checkStatus(for: locale)
+
+            if oldStatus.isReady && !freshStatus.isReady {
+                ErrorLogger.shared.log(
+                    "Stale cache detected for \(identifier): was installed, now \(freshStatus.displayKey) — attempting re-reserve",
+                    source: "SpeechModel"
+                )
+                await attemptReReserve(for: locale)
+            }
+        }
+    }
+
+    /// Force re-reserve a locale to kick AssetInventory out of a stale state.
+    private func attemptReReserve(for locale: Locale) async {
+        guard let supported = await SpeechTranscriber.supportedLocale(equivalentTo: locale) else {
+            ErrorLogger.shared.log(
+                "Re-reserve skipped — no supported locale equivalent for \(locale.identifier)",
+                source: "SpeechModel"
+            )
+            return
+        }
+        do {
+            try await AssetInventory.reserve(locale: supported)
+            ErrorLogger.shared.log(
+                "Re-reserve succeeded for \(locale.identifier)",
+                source: "SpeechModel"
+            )
+        } catch {
+            ErrorLogger.shared.log(
+                "Re-reserve failed for \(locale.identifier): \(error.localizedDescription)",
+                source: "SpeechModel"
+            )
+        }
+        let refreshed = await checkStatus(for: locale)
+        ErrorLogger.shared.log(
+            "Post re-reserve status for \(locale.identifier): \(refreshed.displayKey)",
+            source: "SpeechModel"
+        )
+        if refreshed.isReady {
+            currentModelStatus = refreshed
+        }
+    }
 
     // MARK: - Reservation Management
 
@@ -101,14 +177,16 @@ final class SpeechModelManager {
 
     /// Check the model status for a specific locale.
     func checkStatus(for locale: Locale) async -> SpeechModelStatus {
-        // 1. Check if locale is supported
         guard let supportedLocale = await SpeechTranscriber.supportedLocale(equivalentTo: locale) else {
             let status = SpeechModelStatus.unsupported
             localeStatuses[locale.identifier] = status
+            ErrorLogger.shared.log(
+                "checkStatus(\(locale.identifier)): unsupported (no equivalent locale)",
+                source: "SpeechModel"
+            )
             return status
         }
 
-        // 2. Create a temporary transcriber to check status
         let transcriber = SpeechTranscriber(
             locale: supportedLocale,
             transcriptionOptions: [],
@@ -132,7 +210,16 @@ final class SpeechModelManager {
             modelStatus = .notDownloaded
         }
 
+        let prev = localeStatuses[locale.identifier]
         localeStatuses[locale.identifier] = modelStatus
+
+        if let prev, prev != modelStatus {
+            ErrorLogger.shared.log(
+                "checkStatus(\(locale.identifier)): \(prev.displayKey) → \(modelStatus.displayKey)",
+                source: "SpeechModel"
+            )
+        }
+
         return modelStatus
     }
 
@@ -157,23 +244,55 @@ final class SpeechModelManager {
 
     /// Ensure the model for a given locale is installed, downloading if necessary.
     /// Returns `true` if the model is ready after this call.
+    ///
+    /// When AssetInventory's cache is stale, the first status check may report
+    /// a previously-installed model as `notDownloaded`. A re-reserve + re-check
+    /// cycle often restores the correct state without a full re-download.
     @discardableResult
     func ensureModelReady(for locale: Locale) async -> Bool {
-        let status = await checkStatus(for: locale)
+        ErrorLogger.shared.log(
+            "ensureModelReady(\(locale.identifier)): checking status",
+            source: "SpeechModel"
+        )
+        var status = await checkStatus(for: locale)
+
+        if case .notDownloaded = status {
+            ErrorLogger.shared.log(
+                "ensureModelReady(\(locale.identifier)): status=notDownloaded, attempting re-reserve to recover stale cache",
+                source: "SpeechModel"
+            )
+            await attemptReReserve(for: locale)
+            status = await checkStatus(for: locale)
+        }
 
         switch status {
         case .installed:
+            ErrorLogger.shared.log(
+                "ensureModelReady(\(locale.identifier)): ready",
+                source: "SpeechModel"
+            )
             currentModelStatus = .installed
             return true
 
         case .notDownloaded, .failed:
+            ErrorLogger.shared.log(
+                "ensureModelReady(\(locale.identifier)): status=\(status.displayKey), starting download",
+                source: "SpeechModel"
+            )
             return await downloadModel(for: locale)
 
         case .downloading:
-            // Already downloading, wait for it
+            ErrorLogger.shared.log(
+                "ensureModelReady(\(locale.identifier)): already downloading",
+                source: "SpeechModel"
+            )
             return false
 
         case .unsupported:
+            ErrorLogger.shared.log(
+                "ensureModelReady(\(locale.identifier)): unsupported",
+                source: "SpeechModel"
+            )
             currentModelStatus = .unsupported
             return false
 
@@ -186,6 +305,10 @@ final class SpeechModelManager {
     /// Returns `true` on success.
     func downloadModel(for locale: Locale) async -> Bool {
         guard let supportedLocale = await SpeechTranscriber.supportedLocale(equivalentTo: locale) else {
+            ErrorLogger.shared.log(
+                "downloadModel(\(locale.identifier)): no supported locale equivalent — aborting",
+                source: "SpeechModel"
+            )
             currentModelStatus = .unsupported
             localeStatuses[locale.identifier] = .unsupported
             return false
@@ -198,6 +321,11 @@ final class SpeechModelManager {
             attributeOptions: []
         )
 
+        ErrorLogger.shared.log(
+            "downloadModel(\(locale.identifier)): starting download (supported: \(supportedLocale.identifier))",
+            source: "SpeechModel"
+        )
+
         isDownloading = true
         downloadingLocale = locale
         downloadProgress = 0
@@ -205,37 +333,36 @@ final class SpeechModelManager {
         localeStatuses[locale.identifier] = .downloading(progress: 0)
 
         do {
-            // Free up a reservation slot if we're at the limit
             await ensureReservationSlotAvailable(excluding: supportedLocale)
-
-            // Reserve the locale for our app
             try await AssetInventory.reserve(locale: supportedLocale)
 
-            // Request asset installation
             if let installRequest = try await AssetInventory.assetInstallationRequest(
                 supporting: [transcriber]
             ) {
-                // Observe download progress
                 let progress = installRequest.progress
                 startObservingProgress(progress, locale: locale)
-
-                // Perform download and install (blocking)
                 try await installRequest.downloadAndInstall()
-
                 stopObservingProgress()
             }
 
-            // Verify installation
             let finalStatus = await checkStatus(for: locale)
             currentModelStatus = finalStatus
             localeStatuses[locale.identifier] = finalStatus
             isDownloading = false
             downloadingLocale = nil
 
+            ErrorLogger.shared.log(
+                "downloadModel(\(locale.identifier)): completed — final status: \(finalStatus.displayKey)",
+                source: "SpeechModel"
+            )
+
             return finalStatus.isReady
 
         } catch {
-            ErrorLogger.shared.log("Model download failed for \(locale.identifier): \(error.localizedDescription)", source: "SpeechModel")
+            ErrorLogger.shared.log(
+                "downloadModel(\(locale.identifier)): failed — \(error.localizedDescription)",
+                source: "SpeechModel"
+            )
             let failedStatus = SpeechModelStatus.failed(message: error.localizedDescription)
             currentModelStatus = failedStatus
             localeStatuses[locale.identifier] = failedStatus
