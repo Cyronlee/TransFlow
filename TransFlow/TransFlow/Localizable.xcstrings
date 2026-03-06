@@ -254,6 +254,23 @@
         }
       }
     },
+    "control.system_audio" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "System Audio"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统音频"
+          }
+        }
+      }
+    },
     "control.start_recording" : {
       "extractionState" : "manual",
       "localizations" : {
