@@ -1,5 +1,11 @@
 import Foundation
 
+/// Identifies the audio pipeline that produced a transcription result.
+enum TranscriptionSource: String, Sendable, Equatable, Hashable {
+    case microphone
+    case systemAudio
+}
+
 /// A completed transcription sentence with timestamp and optional translation.
 struct TranscriptionSentence: Identifiable, Sendable {
     let id: UUID
@@ -11,6 +17,8 @@ struct TranscriptionSentence: Identifiable, Sendable {
     var translation: String?
     /// Assigned speaker (e.g. "speaker_0"), nil if diarization disabled or pending
     var speakerId: String?
+    /// Which capture pipeline produced this sentence; nil for legacy single-source sessions.
+    var source: TranscriptionSource?
 
     init(
         id: UUID = UUID(),
@@ -18,7 +26,8 @@ struct TranscriptionSentence: Identifiable, Sendable {
         timestamp: Date,
         text: String,
         translation: String? = nil,
-        speakerId: String? = nil
+        speakerId: String? = nil,
+        source: TranscriptionSource? = nil
     ) {
         self.id = id
         self.startTimestamp = startTimestamp
@@ -26,6 +35,7 @@ struct TranscriptionSentence: Identifiable, Sendable {
         self.text = text
         self.translation = translation
         self.speakerId = speakerId
+        self.source = source
     }
 }
 
@@ -52,6 +62,12 @@ enum AudioSourceType: Sendable, Equatable, Hashable {
     case microphone
     case systemAudio
     case appAudio(AppAudioTarget?)
+    case microphoneAndSystemAudio
+
+    var isDualCapture: Bool {
+        if case .microphoneAndSystemAudio = self { return true }
+        return false
+    }
 }
 
 /// Represents a running application that can be captured for audio.

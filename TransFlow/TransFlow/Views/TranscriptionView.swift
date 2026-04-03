@@ -86,6 +86,11 @@ struct SentenceRow: View {
                             .fill(.quaternary.opacity(0.3))
                     )
 
+                // Source badge (dual capture mode)
+                if let source = sentence.source {
+                    sourceBadge(source)
+                }
+
                 // Speaker badge
                 if let speakerId = sentence.speakerId {
                     speakerBadge(speakerId)
@@ -109,6 +114,28 @@ struct SentenceRow: View {
                 }
             }
         }
+    }
+
+    private func sourceBadge(_ source: TranscriptionSource) -> some View {
+        let label: String
+        let color: Color
+        switch source {
+        case .microphone:
+            label = String(localized: "source.mic")
+            color = .blue
+        case .systemAudio:
+            label = String(localized: "source.system")
+            color = .purple
+        }
+        return Text(label)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(color.opacity(0.12))
+            )
     }
 
     private func speakerBadge(_ speakerId: String) -> some View {

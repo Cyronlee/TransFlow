@@ -74,6 +74,14 @@ final class TransFlowViewModel {
     /// Diarization segments received so far, used for backfilling sentences.
     private var diarizationSegments: [RealtimeDiarizationService.SpeakerSegment] = []
 
+    // Dual capture state
+    private var secondarySpeechEngine: SpeechEngine?
+    private var stopSecondaryAudioCapture: (@Sendable () -> Void)?
+    private var micPartialText: String = ""
+    private var systemPartialText: String = ""
+    private var micPartialStartTimestamp: Date?
+    private var systemPartialStartTimestamp: Date?
+
     // MARK: - Initialization
 
     init() {
@@ -224,6 +232,12 @@ final class TransFlowViewModel {
                     let capture = try await AppAudioCaptureService.startCapture(for: target)
                     audioStream = capture.stream
                     stop = capture.stop
+
+                case .microphoneAndSystemAudio:
+                    try await startDualCapturePipeline(engine: engine)
+                    listeningState = .idle
+                    audioLevel = 0
+                    return
                 }
 
                 self.stopAudioCapture = stop
@@ -379,7 +393,9 @@ final class TransFlowViewModel {
         listeningState = .stopping
 
         // Flush remaining partial text as a final sentence
-        if !currentPartialText.isEmpty {
+        if audioSource.isDualCapture {
+            flushDualPartialText()
+        } else if !currentPartialText.isEmpty {
             let trimmed = currentPartialText.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty {
                 let sentence = TranscriptionSentence(
@@ -414,6 +430,9 @@ final class TransFlowViewModel {
 
         stopAudioCapture?()
         stopAudioCapture = nil
+        stopSecondaryAudioCapture?()
+        stopSecondaryAudioCapture = nil
+        secondarySpeechEngine = nil
         audioLevelTask?.cancel()
         audioLevelTask = nil
         listeningTask?.cancel()
@@ -440,6 +459,8 @@ final class TransFlowViewModel {
         }
         sentences.removeAll()
         currentPartialText = ""
+        micPartialText = ""
+        systemPartialText = ""
         translationService.currentPartialTranslation = ""
         jsonlStore.createSession(name: name)
     }
@@ -449,6 +470,8 @@ final class TransFlowViewModel {
     func clearHistory() {
         sentences.removeAll()
         currentPartialText = ""
+        micPartialText = ""
+        systemPartialText = ""
         translationService.currentPartialTranslation = ""
     }
 
@@ -456,6 +479,184 @@ final class TransFlowViewModel {
 
     func exportSRT() async {
         await SRTExporter.exportToFile(sentences: sentences)
+    }
+
+    // MARK: - Dual Capture Pipeline
+
+    /// Run mic + system audio capture with two independent speech pipelines.
+    private func startDualCapturePipeline(engine: SpeechEngine) async throws {
+        guard micPermissionGranted else {
+            errorMessage = "Microphone permission not granted"
+            ErrorLogger.shared.log("Microphone permission not granted", source: "AudioCapture")
+            listeningState = .idle
+            return
+        }
+
+        let micCapture = audioCaptureService.startCapture()
+        let sysCapture = try await AppAudioCaptureService.startSystemCapture()
+
+        self.stopAudioCapture = micCapture.stop
+        self.stopSecondaryAudioCapture = sysCapture.stop
+        self.sessionStartTime = Date()
+
+        let systemEngine = SpeechEngine(locale: selectedLanguage)
+        self.secondarySpeechEngine = systemEngine
+
+        let (micEngineStream, micEngineCont) = AsyncStream<AudioChunk>.makeStream(
+            bufferingPolicy: .bufferingNewest(256)
+        )
+        let (sysEngineStream, sysEngineCont) = AsyncStream<AudioChunk>.makeStream(
+            bufferingPolicy: .bufferingNewest(256)
+        )
+        let (levelStream, levelCont) = AsyncStream<AudioChunk>.makeStream(
+            bufferingPolicy: .bufferingNewest(64)
+        )
+
+        audioLevelTask = Task {
+            for await chunk in levelStream {
+                self.audioLevel = chunk.level
+                self.audioLevelHistory.append(chunk.level)
+                if self.audioLevelHistory.count > 30 {
+                    self.audioLevelHistory.removeFirst()
+                }
+            }
+        }
+
+        let micForkTask = Task.detached {
+            for await chunk in micCapture.stream {
+                micEngineCont.yield(chunk)
+                levelCont.yield(chunk)
+            }
+            micEngineCont.finish()
+            levelCont.finish()
+        }
+
+        let sysForkTask = Task.detached {
+            for await chunk in sysCapture.stream {
+                sysEngineCont.yield(chunk)
+            }
+            sysEngineCont.finish()
+        }
+
+        self.isDiarizationEnabled = false
+        listeningState = .active
+        errorMessage = nil
+        ErrorLogger.shared.log(
+            "startListening: dual capture started (mic + system), now active",
+            source: "Transcription"
+        )
+
+        // Structured concurrency via `async let` avoids a Swift 6 region-checker bug with
+        // `withTaskGroup` + `group.addTask { @MainActor in ... }` ("pattern ... does not understand how to check").
+        async let micListening: Void = consumeTranscriptionStream(
+            engine,
+            micEngineStream,
+            source: .microphone
+        )
+        async let systemListening: Void = consumeTranscriptionStream(
+            systemEngine,
+            sysEngineStream,
+            source: .systemAudio
+        )
+        _ = await (micListening, systemListening)
+
+        micForkTask.cancel()
+        sysForkTask.cancel()
+    }
+
+    private func consumeTranscriptionStream(
+        _ engine: SpeechEngine,
+        _ stream: AsyncStream<AudioChunk>,
+        source: TranscriptionSource
+    ) async {
+        let events = engine.processStream(stream)
+        for await event in events {
+            await handleDualTranscriptionEvent(event, source: source)
+        }
+    }
+
+    private func handleDualTranscriptionEvent(_ event: TranscriptionEvent, source: TranscriptionSource) async {
+        switch event {
+        case .partial(let text):
+            switch source {
+            case .microphone:
+                if micPartialStartTimestamp == nil && !text.isEmpty {
+                    micPartialStartTimestamp = Date()
+                }
+                micPartialText = text
+            case .systemAudio:
+                if systemPartialStartTimestamp == nil && !text.isEmpty {
+                    systemPartialStartTimestamp = Date()
+                }
+                systemPartialText = text
+            }
+            updateCombinedPartialText()
+
+        case .sentenceComplete(var sentence):
+            sentence.source = source
+            sentences.append(sentence)
+            jsonlStore.appendEntry(sentence: sentence)
+            switch source {
+            case .microphone:
+                micPartialText = ""
+                micPartialStartTimestamp = nil
+            case .systemAudio:
+                systemPartialText = ""
+                systemPartialStartTimestamp = nil
+            }
+            updateCombinedPartialText()
+
+        case .error(let message):
+            errorMessage = message
+            ErrorLogger.shared.log("[\(source.rawValue)] \(message)", source: "Transcription")
+            await SpeechRuntimeRecovery.refreshSpeechModelState(for: selectedLanguage)
+        }
+    }
+
+    private func updateCombinedPartialText() {
+        var parts: [String] = []
+        let micTrimmed = micPartialText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sysTrimmed = systemPartialText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !micTrimmed.isEmpty {
+            parts.append("[Mic] \(micTrimmed)")
+        }
+        if !sysTrimmed.isEmpty {
+            parts.append("[System] \(sysTrimmed)")
+        }
+        currentPartialText = parts.joined(separator: "\n")
+    }
+
+    private func flushDualPartialText() {
+        let micTrimmed = micPartialText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !micTrimmed.isEmpty {
+            let sentence = TranscriptionSentence(
+                startTimestamp: micPartialStartTimestamp ?? Date(),
+                timestamp: Date(),
+                text: micTrimmed,
+                source: .microphone
+            )
+            sentences.append(sentence)
+            jsonlStore.appendEntry(sentence: sentence)
+        }
+
+        let sysTrimmed = systemPartialText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !sysTrimmed.isEmpty {
+            let sentence = TranscriptionSentence(
+                startTimestamp: systemPartialStartTimestamp ?? Date(),
+                timestamp: Date(),
+                text: sysTrimmed,
+                source: .systemAudio
+            )
+            sentences.append(sentence)
+            jsonlStore.appendEntry(sentence: sentence)
+        }
+
+        micPartialText = ""
+        systemPartialText = ""
+        micPartialStartTimestamp = nil
+        systemPartialStartTimestamp = nil
+        currentPartialText = ""
+        partialStartTimestamp = nil
     }
 
     // MARK: - Diarization

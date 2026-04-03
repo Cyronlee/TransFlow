@@ -207,6 +207,15 @@ struct ControlBarView: View {
                 }
             }
 
+            Button {
+                viewModel.audioSource = .microphoneAndSystemAudio
+            } label: {
+                Label("control.mic_and_system", systemImage: "mic.and.signal.meter.fill")
+                if case .microphoneAndSystemAudio = viewModel.audioSource {
+                    Image(systemName: "checkmark")
+                }
+            }
+
             Divider()
 
             if viewModel.availableApps.isEmpty {
@@ -278,6 +287,9 @@ struct ControlBarView: View {
                 Image(systemName: "app.fill")
                     .font(.system(size: 12, weight: .medium))
             }
+        case .microphoneAndSystemAudio:
+            Image(systemName: "mic.and.signal.meter.fill")
+                .font(.system(size: 12, weight: .medium))
         }
     }
 
@@ -286,6 +298,7 @@ struct ControlBarView: View {
         case .microphone: String(localized: "control.microphone")
         case .systemAudio: String(localized: "control.system_audio")
         case .appAudio(let target): target?.name ?? String(localized: "control.app")
+        case .microphoneAndSystemAudio: String(localized: "control.mic_and_system")
         }
     }
 
